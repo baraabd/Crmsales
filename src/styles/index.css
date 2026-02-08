@@ -1,0 +1,35 @@
+/* IBM Plex Sans Arabic Font */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+
+@import './tailwind.css';
+@import './fonts.css';
+@import './theme.css';
+
+/* RTL Global Support */
+* {
+  direction: rtl;
+}
+
+html {
+  direction: rtl;
+}
+
+body {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Override for LTR elements when needed */
+.ltr {
+  direction: ltr !important;
+  text-align: left !important;
+}
+
+/* Number inputs should stay LTR */
+input[type="number"],
+input[type="tel"],
+input[type="time"],
+input[type="date"] {
+  direction: ltr;
+  text-align: left;
+}

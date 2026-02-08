@@ -1,0 +1,97 @@
+{
+  "$schema": "https://unpkg.com/@tokens-studio/schemas@latest/tokens.schema.json",
+  "meta": {
+    "name": "FieldCRM Jibble-TD Tokens (RTL)",
+    "version": "1.0.0",
+    "author": "ChatGPT",
+    "description": "Design tokens for a Jibble-inspired, time-driven field CRM app (Arabic RTL, offline-first). Compatible with Tokens Studio for Figma."
+  },
+  "global": {
+    "color": {
+      "brand": {
+        "blue50": {"$type":"color","$value":"#EEF6FF"},
+        "blue100": {"$type":"color","$value":"#DCEBFF"},
+        "blue200": {"$type":"color","$value":"#B8D7FF"},
+        "blue300": {"$type":"color","$value":"#8BBEFF"},
+        "blue400": {"$type":"color","$value":"#5AA2FF"},
+        "blue500": {"$type":"color","$value":"#2D7FF9"},
+        "blue600": {"$type":"color","$value":"#1F6FE5"},
+        "blue700": {"$type":"color","$value":"#1B5FC4"},
+        "blue800": {"$type":"color","$value":"#154D9B"},
+        "blue900": {"$type":"color","$value":"#0F376F"}
+      },
+      "status": {
+        "success": {"$type":"color","$value":"#22C55E"},
+        "opportunity": {"$type":"color","$value":"#3B82F6"},
+        "busy": {"$type":"color","$value":"#FACC15"},
+        "rejected": {"$type":"color","$value":"#9CA3AF"},
+        "warning": {"$type":"color","$value":"#F97316"},
+        "error": {"$type":"color","$value":"#EF4444"},
+        "info": {"$type":"color","$value":"#0EA5E9"}
+      },
+      "neutral": {
+        "white": {"$type":"color","$value":"#FFFFFF"},
+        "black": {"$type":"color","$value":"#0B1220"},
+        "slate50": {"$type":"color","$value":"#F8FAFC"},
+        "slate100": {"$type":"color","$value":"#F1F5F9"},
+        "slate200": {"$type":"color","$value":"#E2E8F0"},
+        "slate300": {"$type":"color","$value":"#CBD5E1"},
+        "slate400": {"$type":"color","$value":"#94A3B8"},
+        "slate500": {"$type":"color","$value":"#64748B"},
+        "slate600": {"$type":"color","$value":"#475569"},
+        "slate700": {"$type":"color","$value":"#334155"},
+        "slate800": {"$type":"color","$value":"#1E293B"},
+        "slate900": {"$type":"color","$value":"#0F172A"}
+      },
+      "alpha": {
+        "glassOverlay70": {"$type":"color","$value":"rgba(255, 255, 255, 0.70)"},
+        "glassOverlay80": {"$type":"color","$value":"rgba(255, 255, 255, 0.80)"},
+        "scrim40": {"$type":"color","$value":"rgba(11, 18, 32, 0.40)"},
+        "scrim60": {"$type":"color","$value":"rgba(11, 18, 32, 0.60)"}
+      }
+    },
+    "spacing": {
+      "0": {"$type":"dimension","$value":"0px"},
+      "1": {"$type":"dimension","$value":"4px"},
+      "2": {"$type":"dimension","$value":"8px"},
+      "3": {"$type":"dimension","$value":"12px"},
+      "4": {"$type":"dimension","$value":"16px"},
+      "5": {"$type":"dimension","$value":"20px"},
+      "6": {"$type":"dimension","$value":"24px"},
+      "7": {"$type":"dimension","$value":"32px"},
+      "8": {"$type":"dimension","$value":"40px"},
+      "9": {"$type":"dimension","$value":"48px"},
+      "10": {"$type":"dimension","$value":"56px"}
+    },
+    "radius": {
+      "0": {"$type":"dimension","$value":"0px"},
+      "sm": {"$type":"dimension","$value":"10px"},
+      "md": {"$type":"dimension","$value":"14px"},
+      "lg": {"$type":"dimension","$value":"20px"},
+      "xl": {"$type":"dimension","$value":"28px"},
+      "pill": {"$type":"dimension","$value":"999px"}
+    },
+    "shadow": {
+      "level1": {
+        "$type":"shadow",
+        "$value":"0px 2px 8px 0px rgba(15, 23, 42, 0.08)"
+      },
+      "level2": {
+        "$type":"shadow",
+        "$value":"0px 8px 20px 0px rgba(15, 23, 42, 0.10)"
+      },
+      "level3": {
+        "$type":"shadow",
+        "$value":"0px 16px 32px 0px rgba(15, 23, 42, 0.12)"
+      }
+    },
+    "size": {
+      "touchTargetMin": {"$type":"dimension","$value":"48px"},
+      "iconSm": {"$type":"dimension","$value":"16px"},
+      "iconMd": {"$type":"dimension","$value":"20px"},
+      "iconLg": {"$type":"dimension","$value":"24px"},
+      "fab": {"$type":"dimension","$value":"56px"},
+      "bottomBar": {"$type":"dimension","$value":"64px"}
+    }
+  }
+}

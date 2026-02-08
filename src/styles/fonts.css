@@ -1,0 +1,9 @@
+/**
+ * FieldCRM Typography
+ */
+
+/* Fallback system fonts */
+@font-face {
+  font-family: 'SF Pro Display';
+  src: local('SF Pro Display'), local('system-ui'), local('-apple-system');
+}
