@@ -463,7 +463,7 @@ export function HomeMapJibble() {
                       size="lg"
                       fullWidth
                       onClick={() => {
-                        navigate(`/app/dropin/checkin/${selectedLead.id}`);
+                        navigate(`/dropin/checkin-new/${selectedLead.id}`);
                       }}
                     >
                       🚀 بدء زيارة ميدانية

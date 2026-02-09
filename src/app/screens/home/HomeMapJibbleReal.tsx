@@ -331,7 +331,7 @@ export function HomeMapJibbleReal() {
                       variant="primary"
                       size="lg"
                       fullWidth
-                      onClick={() => navigate(`/app/dropin/checkin/${selectedLead.id}`)}
+                      onClick={() => navigate(`/dropin/checkin-new/${selectedLead.id}`)}
                     >
                       بدء زيارة ميدانية
                     </Button>

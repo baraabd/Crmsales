@@ -153,7 +153,7 @@ export default function VisitOutcome() {
       });
     } else if (selectedOption?.requiresOrder) {
       // الانتقال لشاشة الطلب/الصفقة
-      navigate(`/visit/create-order/${visitId}`);
+      navigate(`/visit/deal/${visitId}`);
     } else {
       // إنهاء الزيارة والعودة
       navigate('/app/home', {

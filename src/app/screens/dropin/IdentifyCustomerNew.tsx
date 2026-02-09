@@ -137,7 +137,7 @@ export function IdentifyCustomerNew() {
               <CustomerCard
                 key={customer.id}
                 customer={customer}
-                onClick={() => navigate(`/dropin/checkin/${customer.id}`)}
+                onClick={() => navigate(`/dropin/checkin-new/${customer.id}`)}
               />
             ))}
           </div>
