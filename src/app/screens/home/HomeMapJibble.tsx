@@ -406,7 +406,7 @@ export function HomeMapJibble() {
             'shadow-primary hover:shadow-xl',
             'flex items-center justify-center'
           )}
-          onClick={() => navigate('/app/leads/new')}
+          onClick={() => navigate('/dropin/identify-new')}
         >
           <PlusIcon />
         </motion.button>
@@ -463,7 +463,7 @@ export function HomeMapJibble() {
                       size="lg"
                       fullWidth
                       onClick={() => {
-                        navigate(`/app/dropin/checkin/${selectedLead.id}`);
+                        navigate(`/dropin/checkin-new/${selectedLead.id}`);
                       }}
                     >
                       🚀 بدء زيارة ميدانية

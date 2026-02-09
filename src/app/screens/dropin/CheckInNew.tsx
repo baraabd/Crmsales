@@ -17,33 +17,31 @@ import {
 } from 'lucide-react';
 import { AppButtonV2 } from '../../../design-system/components/AppButtonV2';
 import { toast } from 'sonner';
+import { useApp } from '../../contexts/AppContext';
 
 export function CheckInNew() {
   const navigate = useNavigate();
   const { accountId } = useParams();
   const [checkingIn, setCheckingIn] = useState(false);
+  const { accounts, startVisit } = useApp();
 
-  // Mock customer data
-  const customer = {
-    id: accountId,
-    name: 'محمد أحمد السعيد',
-    company: 'شركة التقنية المتقدمة',
-    phone: '0501234567',
-    location: 'الرياض، حي النخيل',
-    address: 'شارع الملك فهد، مبنى 123',
-  };
+  const customer = accounts.find((account) => account.id === accountId);
 
   const handleCheckIn = async () => {
     setCheckingIn(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (!customer) {
+        toast.error('لم يتم العثور على العميل');
+        return;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const visit = startVisit(customer.id, customer.latitude, customer.longitude);
       toast.success('تم تسجيل الوصول بنجاح! 🎉');
-      
-      // Navigate to visit screen
+
       setTimeout(() => {
-        navigate(`/visit/active/${Date.now()}`);
-      }, 500);
+        navigate(`/visit/active/${visit.id}`);
+      }, 300);
     } catch (error) {
       toast.error('فشل تسجيل الوصول');
     } finally {
@@ -88,29 +86,42 @@ export function CheckInNew() {
           className="rounded-2xl p-4 mb-6"
           style={{ background: 'var(--bg-card)' }}
         >
-          <div className="flex items-start gap-3 mb-4">
-            <div
-              className="size-14 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'var(--color-blue)' }}
-            >
-              <User className="size-7" style={{ color: '#000' }} />
-            </div>
+          {customer ? (
+            <>
+              <div className="flex items-start gap-3 mb-4">
+                <div
+                  className="size-14 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'var(--color-blue)' }}
+                >
+                  <User className="size-7" style={{ color: '#000' }} />
+                </div>
 
-            <div className="flex-1 min-w-0">
-              <h3 className="text-base font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
-                {customer.name}
-              </h3>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {customer.company}
-              </p>
-            </div>
-          </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
+                    {customer.name}
+                  </h3>
+                  {customer.contactPerson && (
+                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      {customer.contactPerson}
+                    </p>
+                  )}
+                </div>
+              </div>
 
-          <div className="space-y-2 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
-            <InfoRow icon={Phone} text={customer.phone} />
-            <InfoRow icon={MapPin} text={customer.location} />
-            <InfoRow icon={Building} text={customer.address} />
-          </div>
+              <div className="space-y-2 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
+                {customer.phone && <InfoRow icon={Phone} text={customer.phone} />}
+                {customer.address && <InfoRow icon={MapPin} text={customer.address} />}
+                <InfoRow
+                  icon={Building}
+                  text={`الإحداثيات: ${customer.latitude.toFixed(4)}, ${customer.longitude.toFixed(4)}`}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              لم يتم العثور على بيانات العميل. الرجاء العودة وإعادة المحاولة.
+            </div>
+          )}
         </div>
 
         {/* Check-in Options */}
@@ -180,7 +191,7 @@ export function CheckInNew() {
           fullWidth
           onClick={handleCheckIn}
           loading={checkingIn}
-          disabled={checkingIn}
+          disabled={checkingIn || !customer}
           icon={<CheckCircle2 />}
         >
           {checkingIn ? 'جارٍ التسجيل...' : 'تسجيل الوصول'}

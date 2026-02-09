@@ -264,7 +264,7 @@ export function HomeMapJibbleReal() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           className="absolute bottom-6 right-4 z-20 w-14 h-14 rounded-[28px] bg-[var(--brand-primary-500)] hover:bg-[var(--brand-primary-600)] text-white shadow-lg flex items-center justify-center"
-          onClick={() => navigate('/app/leads/new')}
+          onClick={() => navigate('/dropin/identify-new')}
         >
           <PlusIcon />
         </motion.button>
@@ -331,7 +331,7 @@ export function HomeMapJibbleReal() {
                       variant="primary"
                       size="lg"
                       fullWidth
-                      onClick={() => navigate(`/app/dropin/checkin/${selectedLead.id}`)}
+                      onClick={() => navigate(`/dropin/checkin-new/${selectedLead.id}`)}
                     >
                       بدء زيارة ميدانية
                     </Button>

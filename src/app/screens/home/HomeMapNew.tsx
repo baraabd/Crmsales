@@ -426,7 +426,7 @@ export function HomeMapNew() {
             'flex items-center justify-center',
             'active:bg-[var(--brand-blue-600)]'
           )}
-          onClick={() => navigate('/app/leads/new')}
+          onClick={() => navigate('/dropin/identify-new')}
         >
           <PlusIcon />
         </motion.button>
@@ -488,7 +488,7 @@ export function HomeMapNew() {
                       size="lg"
                       fullWidth
                       onClick={() => {
-                        navigate(`/app/dropin/checkin/${selectedLead.id}`);
+                        navigate(`/dropin/checkin-new/${selectedLead.id}`);
                       }}
                     >
                       بدء زيارة ميدانية

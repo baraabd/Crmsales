@@ -413,7 +413,7 @@ export function HomeMap() {
                         toast.error('يجب تسجيل الحضور أولاً! ⏰');
                         return;
                       }
-                      navigate(`/dropin/checkin/${selectedAccountData.id}`);
+                      navigate(`/dropin/checkin-new/${selectedAccountData.id}`);
                     }}
                     disabled={!canAddData}
                     className={`w-full h-[52px] rounded-[18px] font-semibold shadow-sm hover:shadow-md transition-all mt-4 ${

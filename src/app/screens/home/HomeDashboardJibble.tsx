@@ -167,7 +167,7 @@ export function HomeDashboardJibble() {
           <>
             <TopBarIconButton
               icon={<MapIcon />}
-              onClick={() => navigate('/app/home/map')}
+              onClick={() => navigate('/app/map-new')}
               label="الخريطة"
             />
             <TopBarIconButton
@@ -263,14 +263,14 @@ export function HomeDashboardJibble() {
               label="عرض الخريطة"
               description="تصفح جميع العملاء"
               gradient="gradient-primary"
-              onClick={() => navigate('/app/home/map')}
+              onClick={() => navigate('/app/map-new')}
             />
             <QuickAction
               icon={icons.users()}
               label="إضافة عميل"
               description="عميل محتمل جديد"
               gradient="bg-gradient-to-br from-[#10B981] to-[#059669]"
-              onClick={() => navigate('/app/leads/new')}
+              onClick={() => navigate('/dropin/identify-new')}
             />
             <QuickAction
               icon={icons.calendar()}
@@ -294,7 +294,7 @@ export function HomeDashboardJibble() {
               زيارات اليوم 📍
             </Text>
             <button
-              onClick={() => navigate('/app/home/map')}
+              onClick={() => navigate('/app/map-new')}
               className="text-[var(--brand-primary-600)] hover:text-[var(--brand-primary-700)]"
             >
               <Text variant="bodyMedium" weight="bold">

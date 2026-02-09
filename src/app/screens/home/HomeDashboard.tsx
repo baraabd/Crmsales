@@ -188,7 +188,7 @@ export function HomeDashboard() {
           <>
             <TopBarIconButton
               icon={<MapIcon />}
-              onClick={() => navigate('/app/home/map')}
+              onClick={() => navigate('/app/map-new')}
               label="الخريطة"
             />
             <TopBarIconButton
@@ -289,14 +289,14 @@ export function HomeDashboard() {
               icon={<MapIcon />}
               label="عرض الخريطة"
               description="تصفح جميع العملاء على الخريطة"
-              onClick={() => navigate('/app/home/map')}
+              onClick={() => navigate('/app/map-new')}
               color="brand"
             />
             <QuickAction
               icon={<UsersIcon />}
               label="إضافة عميل جديد"
               description="إضافة عميل محتمل جديد"
-              onClick={() => navigate('/app/leads/new')}
+              onClick={() => navigate('/dropin/identify-new')}
               color="success"
             />
             <QuickAction
@@ -321,7 +321,7 @@ export function HomeDashboard() {
               زيارات اليوم
             </Text>
             <button
-              onClick={() => navigate('/app/home/map')}
+              onClick={() => navigate('/app/map-new')}
               className="text-[var(--brand-blue-600)] hover:text-[var(--brand-blue-700)]"
             >
               <Text variant="bodySmall" weight="semibold">
@@ -339,7 +339,7 @@ export function HomeDashboard() {
                 size="sm"
                 action={{
                   label: 'إضافة عميل',
-                  onClick: () => navigate('/app/leads/new'),
+                  onClick: () => navigate('/dropin/identify-new'),
                 }}
               />
             </Card>
