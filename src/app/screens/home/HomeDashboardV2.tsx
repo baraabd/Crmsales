@@ -169,7 +169,7 @@ export default function HomeDashboardV2() {
       alert('يجب تسجيل الحضور أولاً قبل بدء الزيارة');
       return;
     }
-    navigate(`/dropin/checkin/${party.id}`);
+    navigate(`/dropin/checkin-new/${party.id}`);
   };
 
   const canStartVisit = workStatus === 'clockedIn';

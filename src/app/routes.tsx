@@ -25,6 +25,14 @@ import { Settings } from './screens/drawer/Settings';
 import { Help } from './screens/drawer/Help';
 import { SyncStatus } from './screens/drawer/SyncStatus';
 import { LeadDetails } from './screens/leads/LeadDetails';
+import { OutcomeSheet } from './screens/dropin/OutcomeSheet';
+import { ScheduleAppointment } from './screens/outcomes/ScheduleAppointment';
+import { FollowUpReminder } from './screens/outcomes/FollowUpReminder';
+import { Rejection } from './screens/outcomes/Rejection';
+import ActiveVisit from './screens/visit/ActiveVisit';
+import VisitOutcome from './screens/visit/VisitOutcome';
+import NextStep from './screens/visit/NextStep';
+import DealPipeline from './screens/visit/DealPipeline';
 
 // Error Boundary Component
 function ErrorBoundary() {
@@ -118,7 +126,10 @@ export const router = createBrowserRouter([
     path: '/visit',
     errorElement: <ErrorBoundary />,
     children: [
-      { path: 'active/:visitId', element: <InProgress /> },
+      { path: 'active/:visitId', element: <ActiveVisit /> },
+      { path: 'outcome/:visitId', element: <VisitOutcome /> },
+      { path: 'next-step/:visitId', element: <NextStep /> },
+      { path: 'deal/:visitId', element: <DealPipeline /> },
     ],
   },
   {
@@ -129,6 +140,12 @@ export const router = createBrowserRouter([
       { path: 'quick-add', element: <QuickAddCustomer /> },
       { path: 'checkin-new/:accountId', element: <CheckInNew /> },
       { path: 'in-progress', element: <InProgress /> },
+      { path: 'in-progress/:visitId', element: <InProgress /> },
+      { path: 'outcome/:visitId', element: <OutcomeSheet /> },
+      { path: 'services/:visitId', element: <ServicesScreen /> },
+      { path: 'appointment/:visitId', element: <ScheduleAppointment /> },
+      { path: 'followup/:visitId', element: <FollowUpReminder /> },
+      { path: 'reject/:visitId', element: <Rejection /> },
     ],
   },
   {

@@ -35,7 +35,7 @@ export function IdentifyCustomer() {
     : nearbyAccounts;
 
   const handleSelectExisting = (accountId: string) => {
-    navigate(`/dropin/checkin/${accountId}`);
+    navigate(`/dropin/checkin-new/${accountId}`);
   };
 
   const handleAddNew = () => {

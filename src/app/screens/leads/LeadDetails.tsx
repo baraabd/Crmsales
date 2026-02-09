@@ -101,7 +101,7 @@ export function LeadDetails() {
 
   // Quick action handlers
   const handleAddVisit = () => {
-    navigate(`/dropin/checkin/${account.id}`);
+    navigate(`/dropin/checkin-new/${account.id}`);
   };
 
   const handleNavigate = () => {
