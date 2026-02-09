@@ -195,7 +195,7 @@ export function QuickAddCustomer() {
       toast.success('تم إضافة العميل بنجاح! ✨');
       
       setTimeout(() => {
-        navigate(`/dropin/checkin/${newAccount.id}`);
+        navigate(`/dropin/checkin-new/${newAccount.id}`);
       }, 500);
     } catch (error) {
       toast.error('حدث خطأ أثناء الإضافة');
