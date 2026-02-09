@@ -2,7 +2,7 @@
  * CheckInNew - تسجيل الوصول مطابق للتصميم
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { motion } from 'motion/react';
 import {
@@ -17,33 +17,45 @@ import {
 } from 'lucide-react';
 import { AppButtonV2 } from '../../../design-system/components/AppButtonV2';
 import { toast } from 'sonner';
+import { useApp } from '../../contexts/AppContext';
 
 export function CheckInNew() {
   const navigate = useNavigate();
   const { accountId } = useParams();
+  const { accounts, startVisit } = useApp();
   const [checkingIn, setCheckingIn] = useState(false);
 
-  // Mock customer data
-  const customer = {
-    id: accountId,
-    name: 'محمد أحمد السعيد',
-    company: 'شركة التقنية المتقدمة',
-    phone: '0501234567',
-    location: 'الرياض، حي النخيل',
-    address: 'شارع الملك فهد، مبنى 123',
-  };
+  const customer = useMemo(() => {
+    if (!accountId) return null;
+    const account = accounts.find((item) => item.id === accountId);
+    if (!account) return null;
+
+    return {
+      id: account.id,
+      name: account.name,
+      company: account.address || 'عميل محتمل',
+      phone: account.phone || 'غير مسجل',
+      location: account.address || 'عنوان غير متوفر',
+      address: account.address || 'عنوان غير متوفر',
+      latitude: account.latitude,
+      longitude: account.longitude,
+    };
+  }, [accountId, accounts]);
 
   const handleCheckIn = async () => {
+    if (!customer) {
+      toast.error('تعذر العثور على بيانات العميل');
+      return;
+    }
+
     setCheckingIn(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const visit = startVisit(customer.id, customer.latitude, customer.longitude);
       toast.success('تم تسجيل الوصول بنجاح! 🎉');
-      
-      // Navigate to visit screen
+
       setTimeout(() => {
-        navigate(`/visit/active/${Date.now()}`);
-      }, 500);
+        navigate(`/dropin/in-progress/${visit.id}`);
+      }, 300);
     } catch (error) {
       toast.error('فشل تسجيل الوصول');
     } finally {
@@ -98,18 +110,18 @@ export function CheckInNew() {
 
             <div className="flex-1 min-w-0">
               <h3 className="text-base font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
-                {customer.name}
+                {customer?.name || 'عميل غير معروف'}
               </h3>
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {customer.company}
+                {customer?.company || 'بيانات غير متوفرة'}
               </p>
             </div>
           </div>
 
           <div className="space-y-2 pt-3 border-t" style={{ borderColor: 'var(--border-color)' }}>
-            <InfoRow icon={Phone} text={customer.phone} />
-            <InfoRow icon={MapPin} text={customer.location} />
-            <InfoRow icon={Building} text={customer.address} />
+            <InfoRow icon={Phone} text={customer?.phone || 'غير مسجل'} />
+            <InfoRow icon={MapPin} text={customer?.location || 'عنوان غير متوفر'} />
+            <InfoRow icon={Building} text={customer?.address || 'عنوان غير متوفر'} />
           </div>
         </div>
 
@@ -180,7 +192,7 @@ export function CheckInNew() {
           fullWidth
           onClick={handleCheckIn}
           loading={checkingIn}
-          disabled={checkingIn}
+          disabled={!customer || checkingIn}
           icon={<CheckCircle2 />}
         >
           {checkingIn ? 'جارٍ التسجيل...' : 'تسجيل الوصول'}

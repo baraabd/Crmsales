@@ -2,7 +2,7 @@
  * IdentifyCustomerNew - البحث عن عميل مطابق للتصميم
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import {
@@ -15,38 +15,54 @@ import {
   Users,
 } from 'lucide-react';
 import { AppButtonV2 } from '../../../design-system/components/AppButtonV2';
+import { useApp } from '../../contexts/AppContext';
 
 export function IdentifyCustomerNew() {
   const navigate = useNavigate();
+  const { accounts } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Mock customers
-  const customers = [
-    {
-      id: '1',
-      name: 'محمد أحمد السعيد',
-      company: 'شركة التقنية المتقدمة',
-      phone: '0501234567',
-      location: 'الرياض، حي النخيل',
-      lastVisit: 'منذ 3 أيام',
-    },
-    {
-      id: '2',
-      name: 'فاطمة علي محمود',
-      company: 'مؤسسة النور للتجارة',
-      phone: '0507654321',
-      location: 'جدة، حي الروضة',
-      lastVisit: 'منذ أسبوع',
-    },
-    {
-      id: '3',
-      name: 'خالد سعيد',
-      company: 'مكتب الاستشارات',
-      phone: '0509876543',
-      location: 'الدمام، حي الفيصلية',
-      lastVisit: 'منذ شهر',
-    },
-  ];
+  const customers = useMemo(() => {
+    if (!accounts.length) {
+      return [
+        {
+          id: '1',
+          name: 'محمد أحمد السعيد',
+          company: 'شركة التقنية المتقدمة',
+          phone: '0501234567',
+          location: 'الرياض، حي النخيل',
+          lastVisit: 'منذ 3 أيام',
+        },
+        {
+          id: '2',
+          name: 'فاطمة علي محمود',
+          company: 'مؤسسة النور للتجارة',
+          phone: '0507654321',
+          location: 'جدة، حي الروضة',
+          lastVisit: 'منذ أسبوع',
+        },
+        {
+          id: '3',
+          name: 'خالد سعيد',
+          company: 'مكتب الاستشارات',
+          phone: '0509876543',
+          location: 'الدمام، حي الفيصلية',
+          lastVisit: 'منذ شهر',
+        },
+      ];
+    }
+
+    return accounts.map((account) => ({
+      id: account.id,
+      name: account.name,
+      company: account.address || 'عميل جديد',
+      phone: account.phone || 'غير مسجل',
+      location: account.address || 'بدون عنوان',
+      lastVisit: account.lastVisit
+        ? new Date(account.lastVisit).toLocaleDateString('ar-SA')
+        : 'لا توجد زيارات',
+    }));
+  }, [accounts]);
 
   const filteredCustomers = customers.filter(c =>
     c.name.includes(searchQuery) ||

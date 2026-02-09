@@ -2,7 +2,8 @@
  * MapScreen - Fixed Mobile Layout
  */
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import {
   MapPin,
@@ -15,18 +16,105 @@ import {
   Plus,
 } from 'lucide-react';
 import { AppButtonV2 } from '../../design-system/components/AppButtonV2';
+import { useApp } from '../contexts/AppContext';
+
+type MapCustomerStatus = 'active' | 'pending' | 'completed';
+
+interface MapCustomer {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  status: MapCustomerStatus;
+  phone?: string;
+  address?: string;
+  lastVisit?: string;
+}
 
 export function MapScreen() {
+  const navigate = useNavigate();
+  const { accounts } = useApp();
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [showLayers, setShowLayers] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [layerFilters, setLayerFilters] = useState({
+    active: true,
+    pending: true,
+    completed: true,
+  });
 
   // Mock customers
-  const customers = [
-    { id: '1', name: 'محمد أحمد', lat: 0.35, lng: 0.4, status: 'active' },
-    { id: '2', name: 'فاطمة علي', lat: 0.6, lng: 0.3, status: 'pending' },
-    { id: '3', name: 'خالد سعيد', lat: 0.25, lng: 0.65, status: 'completed' },
-    { id: '4', name: 'نورة محمد', lat: 0.7, lng: 0.5, status: 'active' },
-  ];
+  const customers = useMemo<MapCustomer[]>(() => {
+    if (!accounts.length) {
+      return [
+        { id: '1', name: 'محمد أحمد', lat: 0.35, lng: 0.4, status: 'active' },
+        { id: '2', name: 'فاطمة علي', lat: 0.6, lng: 0.3, status: 'pending' },
+        { id: '3', name: 'خالد سعيد', lat: 0.25, lng: 0.65, status: 'completed' },
+        { id: '4', name: 'نورة محمد', lat: 0.7, lng: 0.5, status: 'active' },
+      ];
+    }
+
+    const lats = accounts.map((account) => account.latitude);
+    const lngs = accounts.map((account) => account.longitude);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+
+    const normalize = (value: number, min: number, max: number) => {
+      if (max === min) return 0.5;
+      return (value - min) / (max - min);
+    };
+
+    return accounts.map((account) => {
+      const status: MapCustomerStatus = account.nextAction?.type === 'appointment'
+        ? 'pending'
+        : account.lastVisit
+          ? 'completed'
+          : 'active';
+
+      return {
+        id: account.id,
+        name: account.name,
+        phone: account.phone,
+        address: account.address,
+        lastVisit: account.lastVisit,
+        status,
+        lat: 0.1 + normalize(account.latitude, minLat, maxLat) * 0.8,
+        lng: 0.1 + normalize(account.longitude, minLng, maxLng) * 0.8,
+      };
+    });
+  }, [accounts]);
+
+  const filteredCustomers = useMemo(() => {
+    const normalizedQuery = searchQuery.trim();
+    return customers.filter((customer) => {
+      const matchesLayer = layerFilters[customer.status];
+      const matchesSearch =
+        !normalizedQuery || customer.name.includes(normalizedQuery);
+      return matchesLayer && matchesSearch;
+    });
+  }, [customers, layerFilters, searchQuery]);
+
+  const statusCounts = useMemo(() => {
+    return customers.reduce(
+      (counts, customer) => {
+        counts[customer.status] += 1;
+        return counts;
+      },
+      { active: 0, pending: 0, completed: 0 }
+    );
+  }, [customers]);
+
+  const selectedCustomerData = selectedCustomer
+    ? customers.find((customer) => customer.id === selectedCustomer)
+    : null;
+
+  useEffect(() => {
+    if (selectedCustomer && !filteredCustomers.some((customer) => customer.id === selectedCustomer)) {
+      setSelectedCustomer(null);
+    }
+  }, [filteredCustomers, selectedCustomer]);
 
   const statusColors: Record<string, string> = {
     active: 'var(--color-primary)',
@@ -57,7 +145,7 @@ export function MapScreen() {
           />
 
           {/* Customer Markers */}
-          {customers.map((customer) => (
+          {filteredCustomers.map((customer) => (
             <motion.div
               key={customer.id}
               initial={{ scale: 0 }}
@@ -149,6 +237,8 @@ export function MapScreen() {
               <input
                 type="text"
                 placeholder="ابحث عن عميل..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 className="w-full h-11 pr-10 pl-3 rounded-xl focus:outline-none text-sm"
                 style={{
                   background: 'var(--bg-card)',
@@ -187,7 +277,7 @@ export function MapScreen() {
                   عملاء قريبون
                 </div>
                 <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-                  {customers.length} عميل
+                  {filteredCustomers.length} عميل
                 </div>
               </div>
             </div>
@@ -201,6 +291,63 @@ export function MapScreen() {
             </div>
           </div>
         </div>
+
+        {/* Selected Customer Actions */}
+        {selectedCustomerData && (
+          <div className="px-4 mt-3">
+            <div
+              className="rounded-2xl p-4"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {selectedCustomerData.name}
+                  </div>
+                  <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {selectedCustomerData.status === 'active'
+                      ? 'عميل نشط'
+                      : selectedCustomerData.status === 'pending'
+                        ? 'موعد معلق'
+                        : 'زيارة مكتملة'}
+                  </div>
+                </div>
+                <div
+                  className="px-2 py-1 rounded-lg text-[11px]"
+                  style={{
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  {selectedCustomerData.phone || 'بدون رقم'}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="flex-1 h-10 rounded-xl text-sm font-semibold"
+                  style={{
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-color)',
+                  }}
+                  onClick={() => navigate(`/app/leads/${selectedCustomerData.id}`)}
+                >
+                  عرض البيانات
+                </button>
+                <button
+                  className="flex-1 h-10 rounded-xl text-sm font-semibold"
+                  style={{
+                    background: 'var(--color-primary)',
+                    color: '#000',
+                  }}
+                  onClick={() => navigate(`/dropin/checkin-new/${selectedCustomerData.id}`)}
+                >
+                  بدء زيارة
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* FAB Buttons - Left Side */}
         <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2.5">
@@ -246,6 +393,7 @@ export function MapScreen() {
             size="lg"
             fullWidth
             icon={<Plus />}
+            onClick={() => navigate('/dropin/quick-add')}
           >
             إضافة عميل جديد
           </AppButtonV2>
@@ -269,9 +417,30 @@ export function MapScreen() {
           </h3>
           
           <div className="space-y-2">
-            <LayerToggle label="العملاء النشطون" color="var(--color-primary)" />
-            <LayerToggle label="المواعيد المعلقة" color="var(--color-orange)" />
-            <LayerToggle label="الزيارات المكتملة" color="var(--color-blue)" />
+            <LayerToggle
+              label={`العملاء النشطون (${statusCounts.active})`}
+              color="var(--color-primary)"
+              enabled={layerFilters.active}
+              onToggle={() =>
+                setLayerFilters((prev) => ({ ...prev, active: !prev.active }))
+              }
+            />
+            <LayerToggle
+              label={`المواعيد المعلقة (${statusCounts.pending})`}
+              color="var(--color-orange)"
+              enabled={layerFilters.pending}
+              onToggle={() =>
+                setLayerFilters((prev) => ({ ...prev, pending: !prev.pending }))
+              }
+            />
+            <LayerToggle
+              label={`الزيارات المكتملة (${statusCounts.completed})`}
+              color="var(--color-blue)"
+              enabled={layerFilters.completed}
+              onToggle={() =>
+                setLayerFilters((prev) => ({ ...prev, completed: !prev.completed }))
+              }
+            />
           </div>
         </motion.div>
       )}
@@ -279,12 +448,20 @@ export function MapScreen() {
   );
 }
 
-function LayerToggle({ label, color }: { label: string; color: string }) {
-  const [enabled, setEnabled] = useState(true);
-
+function LayerToggle({
+  label,
+  color,
+  enabled,
+  onToggle,
+}: {
+  label: string;
+  color: string;
+  enabled: boolean;
+  onToggle: () => void;
+}) {
   return (
     <button
-      onClick={() => setEnabled(!enabled)}
+      onClick={onToggle}
       className="w-full flex items-center justify-between p-2 rounded-xl transition-all"
       style={{
         background: enabled ? 'var(--bg-input)' : 'transparent',
