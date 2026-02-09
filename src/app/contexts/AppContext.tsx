@@ -226,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const savedBreakStartTime = localStorage.getItem('breakStartTime');
     const savedAgreements = localStorage.getItem('agreements');
     const savedAppointments = localStorage.getItem('appointments');
+    const savedCurrentVisit = localStorage.getItem('currentVisit');
 
     if (savedUser) setUser(JSON.parse(savedUser));
     if (savedToken) setAccessToken(savedToken);
@@ -237,6 +238,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (savedBreakStartTime) setBreakStartTime(savedBreakStartTime);
     if (savedAgreements) setAgreements(JSON.parse(savedAgreements));
     if (savedAppointments) setAppointments(JSON.parse(savedAppointments));
+    if (savedCurrentVisit) setCurrentVisit(JSON.parse(savedCurrentVisit));
   }, []);
 
   // Save to localStorage when data changes
@@ -435,6 +437,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       longitude: lng,
     };
     setCurrentVisit(newVisit);
+    localStorage.setItem('currentVisit', JSON.stringify(newVisit));
     return newVisit;
   };
 
@@ -474,6 +477,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setVisits(prev => [...prev, completedVisit]);
     setCurrentVisit(null);
+    localStorage.removeItem('currentVisit');
     
     // Add to sync queue with additional data
     syncService.addToQueue({

@@ -16,10 +16,21 @@ import { StatsScreenNew } from './screens/StatsScreenNew';
 import { ProfileScreenNew } from './screens/profile/ProfileScreenNew';
 import { NotificationsScreenNew } from './screens/notifications/NotificationsScreenNew';
 import { ServicesScreen } from './screens/ServicesScreen';
+import { IdentifyCustomer } from './screens/dropin/IdentifyCustomer';
 import { IdentifyCustomerNew } from './screens/dropin/IdentifyCustomerNew';
 import { QuickAddCustomer } from './screens/dropin/QuickAddCustomer';
+import { CheckIn } from './screens/dropin/CheckIn';
 import { CheckInNew } from './screens/dropin/CheckInNew';
 import { InProgress } from './screens/dropin/InProgress';
+import { OutcomeSheet } from './screens/dropin/OutcomeSheet';
+import { ServicesCatalog } from './screens/services/ServicesCatalog';
+import { Cart } from './screens/services/Cart';
+import { Discount } from './screens/services/Discount';
+import { AgreementTerms } from './screens/agreement/AgreementTerms';
+import { Signature } from './screens/agreement/Signature';
+import { ScheduleAppointment } from './screens/outcomes/ScheduleAppointment';
+import { BusyFollowUp } from './screens/outcomes/BusyFollowUp';
+import { Rejection } from './screens/outcomes/Rejection';
 import { Timesheet } from './screens/drawer/Timesheet';
 import { Settings } from './screens/drawer/Settings';
 import { Help } from './screens/drawer/Help';
@@ -125,10 +136,21 @@ export const router = createBrowserRouter([
     path: '/dropin',
     errorElement: <ErrorBoundary />,
     children: [
+      { path: 'identify', element: <IdentifyCustomer /> },
       { path: 'identify-new', element: <IdentifyCustomerNew /> },
       { path: 'quick-add', element: <QuickAddCustomer /> },
+      { path: 'checkin/:accountId', element: <CheckIn /> },
       { path: 'checkin-new/:accountId', element: <CheckInNew /> },
-      { path: 'in-progress', element: <InProgress /> },
+      { path: 'in-progress/:visitId', element: <InProgress /> },
+      { path: 'outcome/:visitId', element: <OutcomeSheet /> },
+      { path: 'services/:visitId', element: <ServicesCatalog /> },
+      { path: 'cart/:visitId', element: <Cart /> },
+      { path: 'discount/:visitId', element: <Discount /> },
+      { path: 'agreement/:visitId', element: <AgreementTerms /> },
+      { path: 'signature/:visitId', element: <Signature /> },
+      { path: 'appointment/:visitId', element: <ScheduleAppointment /> },
+      { path: 'followup/:visitId', element: <BusyFollowUp /> },
+      { path: 'reject/:visitId', element: <Rejection /> },
     ],
   },
   {

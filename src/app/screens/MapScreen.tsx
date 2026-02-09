@@ -2,8 +2,9 @@
  * MapScreen - Fixed Mobile Layout
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
+import { useNavigate } from 'react-router';
 import {
   MapPin,
   Navigation,
@@ -13,26 +14,69 @@ import {
   Layers,
   Target,
   Plus,
+  Phone,
+  X,
 } from 'lucide-react';
 import { AppButtonV2 } from '../../design-system/components/AppButtonV2';
+import { useApp } from '../contexts/AppContext';
 
 export function MapScreen() {
+  const navigate = useNavigate();
+  const { accounts } = useApp();
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [showLayers, setShowLayers] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [layerFilters, setLayerFilters] = useState({
+    active: true,
+    pending: true,
+    completed: true,
+  });
 
-  // Mock customers
-  const customers = [
-    { id: '1', name: 'محمد أحمد', lat: 0.35, lng: 0.4, status: 'active' },
-    { id: '2', name: 'فاطمة علي', lat: 0.6, lng: 0.3, status: 'pending' },
-    { id: '3', name: 'خالد سعيد', lat: 0.25, lng: 0.65, status: 'completed' },
-    { id: '4', name: 'نورة محمد', lat: 0.7, lng: 0.5, status: 'active' },
-  ];
+  const normalizedCustomers = useMemo(() => {
+    if (accounts.length > 0) {
+      return accounts.map((account) => {
+        let status: 'active' | 'pending' | 'completed' = 'pending';
+        if (account.lifecycle === 'customer') {
+          status = 'completed';
+        } else if (account.lifecycle === 'warm' || account.lifecycle === 'prospect') {
+          status = 'active';
+        }
+
+        return {
+          id: account.id,
+          name: account.name,
+          phone: account.phone,
+          address: account.address,
+          lat: account.latitude ?? 0.5,
+          lng: account.longitude ?? 0.5,
+          status,
+        };
+      });
+    }
+
+    return [
+      { id: '1', name: 'محمد أحمد', phone: '0550000001', address: 'الرياض', lat: 0.35, lng: 0.4, status: 'active' },
+      { id: '2', name: 'فاطمة علي', phone: '0550000002', address: 'جدة', lat: 0.6, lng: 0.3, status: 'pending' },
+      { id: '3', name: 'خالد سعيد', phone: '0550000003', address: 'الدمام', lat: 0.25, lng: 0.65, status: 'completed' },
+      { id: '4', name: 'نورة محمد', phone: '0550000004', address: 'مكة', lat: 0.7, lng: 0.5, status: 'active' },
+    ];
+  }, [accounts]);
+
+  const customers = normalizedCustomers.filter((customer) => {
+    const matchesSearch = customer.name.toLowerCase().includes(searchQuery.trim().toLowerCase());
+    const matchesLayer = layerFilters[customer.status];
+    return matchesSearch && matchesLayer;
+  });
 
   const statusColors: Record<string, string> = {
     active: 'var(--color-primary)',
     pending: 'var(--color-orange)',
     completed: 'var(--color-blue)',
   };
+
+  const selectedCustomerData = selectedCustomer
+    ? normalizedCustomers.find((customer) => customer.id === selectedCustomer)
+    : null;
 
   return (
     <div className="mobile-screen" dir="rtl">
@@ -149,6 +193,8 @@ export function MapScreen() {
               <input
                 type="text"
                 placeholder="ابحث عن عميل..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 className="w-full h-11 pr-10 pl-3 rounded-xl focus:outline-none text-sm"
                 style={{
                   background: 'var(--bg-card)',
@@ -239,6 +285,71 @@ export function MapScreen() {
           </motion.button>
         </div>
 
+        {/* Customer Detail Card */}
+        {selectedCustomerData && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute bottom-24 left-4 right-4 rounded-2xl p-4 z-20"
+            style={{
+              background: 'var(--bg-card)',
+              boxShadow: 'var(--shadow-card)',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                  {selectedCustomerData.name}
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                  {selectedCustomerData.address || 'لا يوجد عنوان مسجل'}
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                  {selectedCustomerData.phone || 'لا يوجد رقم هاتف'}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedCustomer(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ background: 'var(--bg-input)' }}
+              >
+                <X className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <button
+                className="flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-semibold"
+                style={{ background: 'var(--color-primary)', color: '#000' }}
+                onClick={() => navigate(`/app/leads/${selectedCustomerData.id}`)}
+              >
+                <Users className="w-4 h-4" />
+                التفاصيل
+              </button>
+              <button
+                className="flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-semibold"
+                style={{ background: 'var(--color-blue)', color: '#fff' }}
+                onClick={() => navigate(`/dropin/checkin/${selectedCustomerData.id}`)}
+              >
+                <Navigation className="w-4 h-4" />
+                بدء زيارة
+              </button>
+              <button
+                className="flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-semibold"
+                style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                onClick={() => {
+                  if (selectedCustomerData.phone) {
+                    window.location.href = `tel:${selectedCustomerData.phone}`;
+                  }
+                }}
+              >
+                <Phone className="w-4 h-4" />
+                اتصال
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Bottom Action */}
         <div className="mt-auto px-4 pb-20 pt-3">
           <AppButtonV2
@@ -246,6 +357,7 @@ export function MapScreen() {
             size="lg"
             fullWidth
             icon={<Plus />}
+            onClick={() => navigate('/dropin/quick-add')}
           >
             إضافة عميل جديد
           </AppButtonV2>
@@ -269,9 +381,24 @@ export function MapScreen() {
           </h3>
           
           <div className="space-y-2">
-            <LayerToggle label="العملاء النشطون" color="var(--color-primary)" />
-            <LayerToggle label="المواعيد المعلقة" color="var(--color-orange)" />
-            <LayerToggle label="الزيارات المكتملة" color="var(--color-blue)" />
+            <LayerToggle
+              label="العملاء النشطون"
+              color="var(--color-primary)"
+              enabled={layerFilters.active}
+              onToggle={() => setLayerFilters((prev) => ({ ...prev, active: !prev.active }))}
+            />
+            <LayerToggle
+              label="العملاء بانتظار متابعة"
+              color="var(--color-orange)"
+              enabled={layerFilters.pending}
+              onToggle={() => setLayerFilters((prev) => ({ ...prev, pending: !prev.pending }))}
+            />
+            <LayerToggle
+              label="الزيارات المكتملة"
+              color="var(--color-blue)"
+              enabled={layerFilters.completed}
+              onToggle={() => setLayerFilters((prev) => ({ ...prev, completed: !prev.completed }))}
+            />
           </div>
         </motion.div>
       )}
@@ -279,12 +406,20 @@ export function MapScreen() {
   );
 }
 
-function LayerToggle({ label, color }: { label: string; color: string }) {
-  const [enabled, setEnabled] = useState(true);
-
+function LayerToggle({
+  label,
+  color,
+  enabled,
+  onToggle,
+}: {
+  label: string;
+  color: string;
+  enabled: boolean;
+  onToggle: () => void;
+}) {
   return (
     <button
-      onClick={() => setEnabled(!enabled)}
+      onClick={onToggle}
       className="w-full flex items-center justify-between p-2 rounded-xl transition-all"
       style={{
         background: enabled ? 'var(--bg-input)' : 'transparent',

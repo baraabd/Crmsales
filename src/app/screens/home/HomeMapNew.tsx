@@ -261,7 +261,7 @@ export function HomeMapNew() {
             />
             <TopBarIconButton
               icon={<LayersIcon />}
-              onClick={() => {}}
+              onClick={() => setShowFilters((prev) => !prev)}
               label="الطبقات"
             />
           </>
