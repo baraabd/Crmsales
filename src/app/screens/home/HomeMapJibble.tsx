@@ -251,7 +251,7 @@ export function HomeMapJibble() {
             />
             <TopBarIconButton
               icon={<LayersIcon />}
-              onClick={() => {}}
+              onClick={() => setShowFilters((prev) => !prev)}
               label="الطبقات"
             />
           </>
