@@ -10,6 +10,26 @@ if (Number(process.versions.node.split('.')[0]) !== 24) {
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 process.chdir(root);
+
+// A source ZIP contains no node_modules. Explain the installation step before
+// loading Vite or opening the database, including installs that omitted dev deps.
+const missingDependencies = [];
+for (const dependency of ['vite', '@vitejs/plugin-react', '@tailwindcss/vite', 'react', 'react-dom']) {
+  try {
+    const entry = import.meta.resolve(dependency);
+    if (!existsSync(fileURLToPath(entry))) missingDependencies.push(dependency);
+  } catch (error) {
+    if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error;
+    missingDependencies.push(dependency);
+  }
+}
+if (missingDependencies.length) {
+  console.error(`CRM Sales dependencies are missing: ${missingDependencies.join(', ')}`);
+  console.error('Install dependencies in this project folder, then start again:\n\n  npm install --include=dev\n  npm run dev\n');
+  console.error('On Windows, start-windows.cmd performs both steps automatically.');
+  process.exit(1);
+}
+
 // Environment variables supplied by the shell have priority.
 for (const file of ['.env.local', '.env']) {
   if (existsSync(file)) process.loadEnvFile(file);
