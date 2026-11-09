@@ -3,7 +3,7 @@ name: Verify CRM Sales
 on:
   pull_request:
   push:
-    branches: [main, fix/local-backend-login]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

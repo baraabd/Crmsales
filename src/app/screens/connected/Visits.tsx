@@ -446,10 +446,14 @@ export function FollowUp() {
 export function RejectVisit() {
   const { visitId } = useParams();
   const { currentVisit, updateAccount, endVisit, user } = useApp();
-  const navigate = useNavigate();
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [completedAccountId, setCompletedAccountId] = useState<string | null>(
+    null,
+  );
+  if (completedAccountId)
+    return <Navigate to={`/app/leads/${completedAccountId}`} replace />;
   if (!currentVisit || currentVisit.id !== visitId)
     return <Navigate to="/app/home-new" replace />;
   const save = (event: React.FormEvent) => {
@@ -465,6 +469,7 @@ export function RejectVisit() {
         pinColor: "gray",
         nextAction: { type: "none" },
       });
+      setCompletedAccountId(currentVisit.accountId);
       endVisit(
         currentVisit.id,
         "rejected",
@@ -472,8 +477,8 @@ export function RejectVisit() {
           .filter(Boolean)
           .join("\n"),
       );
-      navigate(`/app/leads/${currentVisit.accountId}`);
     } catch (e) {
+      setCompletedAccountId(null);
       setError((e as Error).message);
     }
   };

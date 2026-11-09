@@ -79,6 +79,11 @@ try {
   });
   await page.goto(`${base}/app/leads-new`);
   await page.waitForURL('**/auth/login');
+  const loginButtonPadding = await page.getByRole('button', { name: 'تسجيل الدخول', exact: true })
+    .evaluate(button => Number.parseFloat(getComputedStyle(button).paddingTop));
+  assert.ok(loginButtonPadding >= 10, 'Global CSS must not override Tailwind button spacing');
+  const loginField = await page.getByLabel('البريد الإلكتروني', { exact: true }).boundingBox();
+  assert.ok(loginField.x >= 20 && loginField.width < 360, 'Mobile forms need readable horizontal spacing');
   await page.screenshot({ path: join(resultsDir, 'login.png'), fullPage: true });
   console.log('PASS: unauthenticated routes are protected; login screen rendered.');
 
@@ -139,6 +144,16 @@ try {
   await page.screenshot({ path: join(resultsDir, 'signed-agreement.png'), fullPage: true });
   console.log('PASS: signed agreement, prices, installments and deal persisted; signature survives reload.');
 
+  await page.goto(`${base}/app/leads/${account.id}`);
+  await beginVisit();
+  await page.getByRole('link', { name: /غير مهتم/ }).click();
+  await page.getByLabel('سبب الرفض', { exact: true }).selectOption('لا توجد حاجة حالياً');
+  await page.getByLabel('تفاصيل الرفض').fill('نتيجة زيارة لاحقة للاختبار');
+  await page.getByRole('button', { name: 'حفظ النتيجة وإنهاء الزيارة' }).click();
+  await page.waitForURL(`${base}/app/leads/${account.id}`);
+  await eventually(async () => (await records('visits', token)).some(v => v.outcome === 'rejected'), 'Rejected visit did not reach database');
+  console.log('PASS: rejection is saved and navigates to the customer instead of a stale-visit redirect.');
+
   await page.goto(`${base}/app/home-new`);
   await page.getByRole('heading', { name: /مرحباً/ }).waitFor();
   await context.setOffline(true);
@@ -165,11 +180,35 @@ try {
   await login();
   await page.getByRole('alert').filter({ hasText: 'تعذر الاتصال بالخادم' }).waitFor();
   await page.unroute('**/api/auth/login');
+  let releaseInitialLoad;
+  let waitingForAccounts = false;
+  const initialLoad = new Promise(resolve => { releaseInitialLoad = resolve; });
+  const holdInitialAccounts = async route => {
+    if (route.request().method() === 'GET') {
+      waitingForAccounts = true;
+      await initialLoad;
+    }
+    await route.continue();
+  };
+  await page.route('**/api/accounts', holdInitialAccounts);
   await login();
+  await eventually(() => waitingForAccounts, 'Initial account load did not start');
+  // Allow React to paint while the database response is deliberately held open.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await page.getByRole('heading', { name: 'مرحباً مندوب بعد التعديل' }).count(), 0,
+    'The dashboard must wait for initial data hydration');
+  assert.equal(await page.getByRole('button', { name: 'بدء الدوام', exact: true }).count(), 0,
+    'Clock-in must not invalidate the initial data read');
+  releaseInitialLoad();
   await page.waitForURL('**/app/home-new');
+  await page.unroute('**/api/accounts', holdInitialAccounts);
   await page.getByRole('heading', { name: 'مرحباً مندوب بعد التعديل' }).waitFor();
+  await page.getByRole('button', { name: 'بدء الدوام', exact: true }).click();
+  await page.getByRole('link', { name: 'العملاء', exact: true }).click();
+  await page.getByText(clientName, { exact: true }).waitFor();
+  await page.getByText('عميل محفوظ أثناء انقطاع الشبكة', { exact: true }).waitFor();
   assert.equal((await records('accounts', (await session()).accessToken)).length, 2);
-  console.log('PASS: profile update, logout/revocation, wrong-password vs network errors, and real re-login.');
+  console.log('PASS: profile update, logout/revocation, error types, and re-login waits for initial data before clock-in.');
 
   for (const route of ['map-new', 'calendar-new', 'leads-new', 'stats-new', 'profile-new', 'notifications-new', 'services-new', 'timesheet', 'sync-status', 'settings', 'help']) {
     await page.goto(`${base}/app/${route}`);

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { PointerEvent } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router";
+import { Link, Navigate, useParams } from "react-router";
 import { useApp } from "../../contexts/AppContext";
 import {
   Page,
@@ -105,7 +105,6 @@ export function ServiceList() {
 
 export function CreateAgreement() {
   const { visitId } = useParams();
-  const navigate = useNavigate();
   const {
     currentVisit,
     accounts,
@@ -125,6 +124,9 @@ export function CreateAgreement() {
   const [accepted, setAccepted] = useState(false);
   const [signed, setSigned] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [completedAgreementId, setCompletedAgreementId] = useState<
+    string | null
+  >(null);
   const [error, setError] = useState("");
   const canvas = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
@@ -141,6 +143,10 @@ export function CreateAgreement() {
   const lastDay = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
   end.setDate(Math.min(startDay, lastDay));
   const endDate = Number.isFinite(end.getTime()) ? localDate(end) : startDate;
+  // Completing a visit clears currentVisit before the router commits navigation.
+  // Keep the successful destination ahead of the inactive-visit guard.
+  if (completedAgreementId)
+    return <Navigate to={`/app/agreements/${completedAgreementId}`} replace />;
   if (!currentVisit || currentVisit.id !== visitId)
     return <Navigate to="/app/home-new" replace />;
   const account = accounts.find((a) => a.id === currentVisit.accountId);
@@ -253,6 +259,7 @@ export function CreateAgreement() {
         localStorage.getItem(
           `crm:visit-notes:${user?.id}:${currentVisit.id}`,
         ) || "";
+      setCompletedAgreementId(agreement.id);
       endVisit(
         currentVisit.id,
         "deal",
@@ -260,8 +267,8 @@ export function CreateAgreement() {
           .filter(Boolean)
           .join("\n"),
       );
-      navigate(`/app/agreements/${agreement.id}`);
     } catch (e) {
+      setCompletedAgreementId(null);
       setSaving(false);
       setError((e as Error).message);
     }

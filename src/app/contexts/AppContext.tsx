@@ -222,7 +222,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOutbox([]);
     setAuthReady(true);
   }
-  function activateSession(nextUser: User, accessToken: string) {
+  async function activateSession(nextUser: User, accessToken: string) {
+    // Private routes must wait for the first database read, not only token validation.
+    // Otherwise an immediate clock-in can change state and discard the initial GETs.
+    setAuthReady(false);
     const session = { userId: nextUser.id, accessToken };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     sessionRef.current = session;
@@ -239,8 +242,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     replaceData(restored);
     setUser(nextUser);
     setAuthError(null);
-    setAuthReady(true);
-    void syncNow().catch(error => setAuthError(error instanceof Error ? error.message : 'تعذر تحديث البيانات.'));
+    try {
+      await syncNow();
+    } catch (error) {
+      if (sessionRef.current === session) {
+        setAuthError(error instanceof Error ? error.message : 'تعذر تحديث البيانات.');
+      }
+    } finally {
+      if (sessionRef.current === session) setAuthReady(true);
+    }
   }
 
   async function refreshServerData() {
@@ -287,7 +297,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       apiRequest<{ user: User }>('/auth/user', {}, saved.accessToken).then(result => {
         if (epoch !== epochRef.current) return;
         if (result.user.id !== saved.userId) throw new Error('تعذر التحقق من هوية الجلسة.');
-        activateSession(result.user, saved.accessToken);
+        return activateSession(result.user, saved.accessToken);
       }).catch(error => {
         if (epoch !== epochRef.current) return;
         if (error instanceof ApiError && error.status === 401) localStorage.removeItem(SESSION_KEY);
@@ -310,7 +320,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAuthError(null);
     const result = await apiRequest<{ user: User; accessToken: string }>(path, { method: 'POST', body: JSON.stringify(body) });
     if (epoch !== epochRef.current) return;
-    activateSession(result.user, result.accessToken);
+    await activateSession(result.user, result.accessToken);
   }
   const login = (email: string, password: string) => authenticate('/auth/login', { email: email.trim(), password });
   const register = (input: Registration) => authenticate('/auth/signup', { ...input, email: input.email.trim(), name: input.name.trim() });
@@ -365,8 +375,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [data.workStatus]);
   const breakTimeRemaining = data.breakStartTime ? Math.max(0, 1800 - Math.floor((now - Date.parse(data.breakStartTime)) / 1000)) : 0;
   useEffect(() => {
-    if (data.workStatus === 'break' && data.breakStartTime && breakTimeRemaining === 0) setWorkStatus('clockedIn');
-  }, [breakTimeRemaining, data.workStatus, data.breakStartTime]);
+    if (authReady && data.workStatus === 'break' && data.breakStartTime && breakTimeRemaining === 0) setWorkStatus('clockedIn');
+  }, [authReady, breakTimeRemaining, data.workStatus, data.breakStartTime]);
 
   function addAccount(input: Omit<Account, 'id'>) {
     requireSession();

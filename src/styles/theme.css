@@ -91,8 +91,8 @@
 
 /* ==================== GLOBAL RESET ==================== */
 * {
-  margin: 0;
-  padding: 0;
+  /* Tailwind's base layer resets spacing. An unlayered reset here would
+     override utility classes that set margin and padding. */
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
