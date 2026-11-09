@@ -488,6 +488,7 @@ export function RejectVisit() {
         <label className="block space-y-2">
           <span>سبب الرفض</span>
           <select
+            aria-label="سبب الرفض"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             required
