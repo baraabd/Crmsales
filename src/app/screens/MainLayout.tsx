@@ -1,257 +1,147 @@
-import { useState } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router';
-import { useApp } from '../contexts/AppContext';
-import { BottomNav } from '../../design-system/components/BottomNav';
-import { Button } from '../components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '../components/ui/sheet';
-import { Badge } from '../components/ui/badge';
-import { motion, AnimatePresence } from 'motion/react';
-import {
-  Home,
-  Calendar,
-  Users,
-  BarChart3,
-  User,
-  Menu,
-  Bell,
-  Wifi,
-  WifiOff,
-  Clock,
-  RefreshCw,
-  Settings,
-  HelpCircle,
-  LogOut,
-} from 'lucide-react';
+import { Link, NavLink, Outlet } from "react-router";
+import { Home, Calendar, MapPin, Users, User, Bell, Menu } from "lucide-react";
+import { useApp } from "../contexts/AppContext";
 
 export function MainLayout() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { user, isOnline, outbox, logout } = useApp();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
-
+  const { user, outbox, appointments, accounts, authError } = useApp();
+  const reminderCount =
+    appointments.filter((a) => a.status === "scheduled").length +
+    accounts.filter((a) => a.nextAction?.type === "followUp").length;
   const tabs = [
-    { path: '/app/home', icon: Home, label: 'الرئيسية' },
-    { path: '/app/calendar', icon: Calendar, label: 'التقويم' },
-    { path: '/app/leads', icon: Users, label: 'عملائي' },
-    { path: '/app/stats', icon: BarChart3, label: 'الإحصائيات' },
-    { path: '/app/profile', icon: User, label: 'الحساب' },
+    { path: "/app/home-new", label: "الرئيسية", Icon: Home },
+    { path: "/app/calendar-new", label: "المواعيد", Icon: Calendar },
+    { path: "/app/map-new", label: "المواقع", Icon: MapPin },
+    { path: "/app/leads-new", label: "العملاء", Icon: Users },
+    { path: "/app/profile-new", label: "الحساب", Icon: User },
   ];
-
-  const drawerItems = [
-    { path: '/app/timesheet', icon: Clock, label: 'سجل الدوام' },
-    { path: '/app/sync-status', icon: RefreshCw, label: 'حالة المزامنة', badge: outbox.length },
-    { path: '/app/settings', icon: Settings, label: 'الإعدادات' },
-    { path: '/app/help', icon: HelpCircle, label: 'مساعدة' },
-  ];
-
-  const handleLogout = () => {
-    logout();
-    navigate('/auth/login');
-    setLogoutDialogOpen(false);
-    setDrawerOpen(false);
-  };
-
   return (
-    <div className="h-screen flex flex-col overflow-hidden" dir="rtl" style={{ background: 'var(--bg-canvas)' }}>
-      {/* Mobile-First Top Bar - Compact */}
-      <motion.div 
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="px-4 py-3 flex items-center justify-between shadow-lg relative z-10"
-        style={{ background: 'linear-gradient(90deg, var(--brand-primary-500), var(--brand-primary-600))' }}
+    <div
+      className="h-full flex flex-col max-w-5xl mx-auto"
+      dir="rtl"
+      style={{ background: "var(--bg-app)", color: "var(--text-primary)" }}
+    >
+      <header
+        className="flex-none px-4 py-3 flex items-center justify-between relative z-30"
+        style={{
+          background: "var(--bg-card)",
+          borderBottom: "1px solid var(--border-color)",
+        }}
       >
-        <div className="flex items-center gap-3">
-          {/* Menu Button with Animation */}
-          <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-            <SheetTrigger asChild>
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                className="relative p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <Menu className="size-6 text-white" />
-                {outbox.length > 0 && (
-                  <motion.span
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="absolute -top-1 -right-1 size-5 text-white text-xs rounded-full flex items-center justify-center font-bold"
-                    style={{ background: 'var(--status-error)' }}
-                  >
-                    {outbox.length}
-                  </motion.span>
-                )}
-              </motion.button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[85vw] max-w-sm">
-              <SheetHeader>
-                <SheetTitle className="text-right">
-                  <motion.div 
-                    initial={{ x: 20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    className="flex items-center gap-3"
-                  >
-                    <div className="size-14 rounded-full flex items-center justify-center shadow-lg" style={{
-                      background: 'linear-gradient(135deg, var(--brand-primary-500), var(--brand-primary-600))'
-                    }}>
-                      <User className="size-7 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-lg">{user?.name}</div>
-                      <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>{user?.employeeId}</div>
-                      <div className={`text-xs mt-1 flex items-center gap-1.5`} style={{
-                        color: isOnline ? 'var(--status-success)' : 'var(--status-warning)'
-                      }}>
-                        {isOnline ? <Wifi className="size-3" /> : <WifiOff className="size-3" />}
-                        <span>{isOnline ? 'متصل' : 'غير متصل'}</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                </SheetTitle>
-                <SheetDescription className="sr-only">
-                  قائمة الإعدادات والخيارات الإضافية
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="mt-8 space-y-2">
-                {drawerItems.map((item, index) => (
-                  <motion.div
-                    key={item.path}
-                    initial={{ x: 20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <Link
-                      to={item.path}
-                      onClick={() => setDrawerOpen(false)}
-                      className="flex items-center justify-between px-4 py-4 rounded-xl transition-colors"
-                      style={{
-                        background: 'transparent',
-                      }}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2 rounded-lg" style={{ background: 'var(--neutral-100)' }}>
-                          <item.icon className="size-5" style={{ color: 'var(--text-primary)' }} />
-                        </div>
-                        <span className="font-medium">{item.label}</span>
-                      </div>
-                      {item.badge && item.badge > 0 && (
-                        <Badge variant="destructive" className="rounded-full">{item.badge}</Badge>
-                      )}
-                    </Link>
-                  </motion.div>
-                ))}
-
-                <motion.button
-                  initial={{ x: 20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: drawerItems.length * 0.05 }}
-                  onClick={() => setLogoutDialogOpen(true)}
-                  className="w-full flex items-center gap-4 px-4 py-4 rounded-xl transition-colors mt-4"
-                  style={{ background: 'transparent', color: 'var(--status-error)' }}
-                >
-                  <div className="p-2 rounded-lg" style={{ background: 'var(--status-error-light)' }}>
-                    <LogOut className="size-5" />
-                  </div>
-                  <span className="font-medium">تسجيل الخروج</span>
-                </motion.button>
-              </div>
-            </SheetContent>
-          </Sheet>
-
-          {/* User Avatar Button - NEW */}
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
-            onClick={() => navigate('/app/profile')}
+        <details className="relative">
+          <summary
+            className="cursor-pointer list-none p-2"
+            aria-label="القائمة"
           >
-            <div className="size-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-              <User className="size-5 text-white" />
-            </div>
-          </motion.button>
-        </div>
-
-        {/* App Title - Center */}
-        <div className="absolute left-1/2 -translate-x-1/2 text-white">
-          <div className="font-bold text-base tracking-wide">نظام CRM</div>
-        </div>
-
-        {/* Status Indicators - Compact */}
-        <div className="flex items-center gap-2">
-          {/* Notifications */}
-          <motion.div whileTap={{ scale: 0.9 }}>
-            <Link to="/app/notifications">
-              <button className="relative p-2 hover:bg-white/10 rounded-lg transition-colors">
-                <Bell className="size-5 text-white" />
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -left-1 size-5 text-white text-xs rounded-full flex items-center justify-center font-bold"
-                  style={{ background: 'var(--status-error)' }}
-                >
-                  3
-                </motion.span>
-              </button>
-            </Link>
-          </motion.div>
-        </div>
-      </motion.div>
-
-      {/* Main Content - Full Screen */}
-      <div className="flex-1 overflow-hidden">
-        <Outlet />
-      </div>
-
-      {/* Bottom Navigation - استخدام المكون الجديد */}
-      <BottomNav />
-
-      {/* Logout Confirmation Dialog - Mobile Optimized */}
-      <AnimatePresence>
-        {logoutDialogOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setLogoutDialogOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="fixed inset-0 flex items-center justify-center z-50 p-6"
+            <Menu size={24} />
+          </summary>
+          <nav
+            aria-label="القائمة الجانبية"
+            className="absolute right-0 top-full mt-3 p-3 rounded-2xl shadow-xl w-60 space-y-1"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+            }}
+          >
+            <p className="px-3 py-2 font-bold">{user?.name}</p>
+            {[
+              ["/app/timesheet", "ملخص الدوام"],
+              ["/app/stats-new", "الإحصائيات والاتفاقات"],
+              ["/app/services-new", "الخدمات والباقات"],
+              ["/app/sync-status", `المزامنة (${outbox.length})`],
+              ["/app/settings", "الإعدادات"],
+              ["/app/help", "المساعدة"],
+            ].map(([to, label]) => (
+              <Link
+                key={to}
+                to={to}
+                className="block p-3 rounded-xl"
+                onClick={(event) =>
+                  event.currentTarget
+                    .closest("details")
+                    ?.removeAttribute("open")
+                }
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+        </details>
+        <Link
+          to="/app/home-new"
+          className="font-bold tracking-widest"
+          style={{ color: "var(--color-primary)" }}
+        >
+          CRM SALES
+        </Link>
+        <Link
+          to="/app/notifications-new"
+          className="relative p-2"
+          aria-label={`المتابعات والمواعيد (${reminderCount})`}
+        >
+          <Bell size={22} />
+          {reminderCount > 0 && (
+            <span
+              className="absolute -top-1 -left-1 px-1 rounded-full text-xs"
+              style={{ background: "var(--color-primary)", color: "#07150d" }}
             >
-              <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
-                <div className="flex justify-center">
-                  <div className="size-14 rounded-full flex items-center justify-center" style={{ background: 'var(--status-error-light)' }}>
-                    <LogOut className="size-7" style={{ color: 'var(--status-error)' }} />
-                  </div>
-                </div>
-                <h3 className="text-xl font-bold text-center" style={{ color: 'var(--text-primary)' }}>تسجيل الخروج</h3>
-                <p className="text-sm text-center leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                  هل تريد تسجيل الخروج؟ سيتم الاحتفاظ بالبيانات غير المزامنة وسيتم رفعها لاحقًا عند تسجيل الدخول.
-                </p>
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setLogoutDialogOpen(false)}
-                    className="flex-1 h-12 text-base"
-                  >
-                    إلغاء
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleLogout}
-                    className="flex-1 h-12 text-base font-semibold"
-                  >
-                    تسجيل الخروج
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+              {reminderCount}
+            </span>
+          )}
+        </Link>
+      </header>
+      {authError && (
+        <div
+          role="alert"
+          className="flex-none px-4 py-2 text-sm"
+          style={{ background: "#ff3b4718", color: "var(--color-red)" }}
+        >
+          {authError}{" "}
+          <Link to="/app/sync-status" className="underline">
+            إعادة المزامنة
+          </Link>
+        </div>
+      )}
+      {outbox.length > 0 && (
+        <div
+          role="status"
+          className="flex-none block px-4 py-2 text-center text-sm"
+          style={{ background: "#ff950018", color: "var(--color-orange)" }}
+        >
+          <Link to="/app/sync-status">
+            {outbox.some((item) => item.status === "failed")
+              ? `تعذر إرسال بعض البيانات — ${outbox.length} عملية لم تُحفظ في الخادم. عرض التفاصيل`
+              : `${outbox.length} عملية تنتظر الحفظ في الخادم — عرض المزامنة`}
+          </Link>
+        </div>
+      )}
+      <main className="flex-1 min-h-0 overflow-hidden">
+        <Outlet />
+      </main>
+      <nav
+        aria-label="التنقل الرئيسي"
+        className="flex-none flex items-center justify-around px-2 pt-3 pb-4"
+        style={{
+          background: "var(--bg-card)",
+          borderTop: "1px solid var(--border-color)",
+          paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+        }}
+      >
+        {tabs.map(({ path, label, Icon }) => (
+          <NavLink
+            key={path}
+            to={path}
+            className="flex flex-col items-center gap-1 px-2 py-1 text-xs"
+            style={({ isActive }) => ({
+              color: isActive
+                ? "var(--color-primary)"
+                : "var(--text-secondary)",
+            })}
+          >
+            <Icon size={22} />
+            <span>{label}</span>
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }

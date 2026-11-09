@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '/src/utils/supabase';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { apiRequest, ApiError, readStored, SESSION_KEY, userStorageKey } from '../services/api';
 import { syncService } from '../services/syncService';
 
 // Types
@@ -104,8 +103,18 @@ export interface OutboxItem {
   data: any;
 }
 
+export interface Registration {
+  email: string;
+  password: string;
+  name: string;
+  employeeId?: string;
+  company?: string;
+}
+
 interface AppContextType {
   user: User | null;
+  authReady: boolean;
+  authError: string | null;
   isOnline: boolean;
   isAuthenticated: boolean;
   accounts: Account[];
@@ -121,7 +130,9 @@ interface AppContextType {
   dailySummary: DailySummary | null;
   agreements: Agreement[];
   appointments: Appointment[];
-  login: (employeeId: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (input: Registration) => Promise<void>;
+  updateProfile: (updates: Partial<Pick<User, 'name' | 'company' | 'employeeId'>>) => Promise<void>;
   loginOffline: () => void;
   logout: () => void;
   setWorkStatus: (status: WorkStatus) => void;
@@ -138,597 +149,314 @@ interface AppContextType {
   getUpcomingAppointments: (accountId?: string) => Appointment[];
 }
 
+interface DataState {
+  accounts: Account[];
+  visits: Visit[];
+  agreements: Agreement[];
+  appointments: Appointment[];
+  currentVisit: Visit | null;
+  workStatus: WorkStatus;
+  clockInTime: string | null;
+  breakStartTime: string | null;
+  breakSeconds: number;
+  totalWorkTime: number;
+  dailySummary: DailySummary | null;
+}
+interface Session { userId: string; accessToken: string; }
+const initialData = (): DataState => ({
+  accounts: [], visits: [], agreements: [], appointments: [], currentVisit: null,
+  workStatus: 'offDuty', clockInTime: null, breakStartTime: null,
+  breakSeconds: 0, totalWorkTime: 0, dailySummary: null,
+});
 const AppContext = createContext<AppContextType | undefined>(undefined);
+const upsert = <T extends { id: string }>(records: T[], record: T): T[] => {
+  const found = records.some(item => item.id === record.id);
+  return found ? records.map(item => item.id === record.id ? record : item) : [...records, record];
+};
+function mergePending<T extends { id: string }>(records: T[], type: string): T[] {
+  return syncService.getItems().filter(item => item.type === type).reduce((merged, item) =>
+    item.operation === 'delete' ? merged.filter(record => record.id !== item.data.id) : upsert(merged, item.data), records);
+}
+function workSeconds(data: DataState, now: number) {
+  if (!data.clockInTime) return data.totalWorkTime;
+  const end = data.workStatus === 'break' && data.breakStartTime ? Date.parse(data.breakStartTime) : now;
+  return Math.max(0, Math.floor((end - Date.parse(data.clockInTime)) / 1000) - data.breakSeconds);
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [visits, setVisits] = useState<Visit[]>([]);
+  const [data, setData] = useState<DataState>(initialData);
   const [outbox, setOutbox] = useState<OutboxItem[]>([]);
-  const [currentVisit, setCurrentVisit] = useState<Visit | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [workStatus, setWorkStatusState] = useState<WorkStatus>('offDuty');
-  const [clockInTime, setClockInTime] = useState<string | null>(null);
-  const [breakStartTime, setBreakStartTime] = useState<string | null>(null);
-  const [totalWorkTime, setTotalWorkTime] = useState<number>(0);
-  const [breakTimeRemaining, setBreakTimeRemaining] = useState<number>(0);
-  const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
-  const [agreements, setAgreements] = useState<Agreement[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [now, setNow] = useState(Date.now());
+  const dataRef = useRef(data);
+  const sessionRef = useRef<Session | null>(null);
+  const epochRef = useRef(0);
+  const revisionRef = useRef(0);
 
-  const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-d80cbf4a`;
-
-  const BREAK_DURATION = 30 * 60; // 30 minutes in seconds
-  const BREAK_WARNING_TIME = 5 * 60; // 5 minutes warning
-
-  // Calculate daily summary
-  const calculateDailySummary = (): DailySummary => {
-    const today = new Date().toDateString();
-    const todayVisits = visits.filter(v => v.endTime && new Date(v.endTime).toDateString() === today);
-    
-    return {
-      totalVisits: todayVisits.length,
-      totalDeals: todayVisits.filter(v => v.outcome === 'deal').length,
-      totalAppointments: todayVisits.filter(v => v.outcome === 'appointment').length,
-      totalFollowUps: todayVisits.filter(v => v.outcome === 'busy').length,
-      totalWorkTime,
-      date: today,
-    };
-  };
-
-  // Handle work status changes
-  const handleSetWorkStatus = (status: WorkStatus) => {
-    const now = new Date().toISOString();
-    
-    if (status === 'clockedIn' && workStatus === 'offDuty') {
-      // Clock In
-      setClockInTime(now);
-      localStorage.setItem('clockInTime', now);
-    } else if (status === 'offDuty' && workStatus !== 'offDuty') {
-      // Clock Out
-      if (clockInTime) {
-        const duration = Math.floor((new Date().getTime() - new Date(clockInTime).getTime()) / 1000);
-        setTotalWorkTime(duration);
-      }
-      setClockInTime(null);
-      localStorage.removeItem('clockInTime');
-    } else if (status === 'break' && workStatus !== 'break') {
-      // Start Break
-      setBreakStartTime(now);
-      localStorage.setItem('breakStartTime', now);
-    } else if (status === 'clockedIn' && workStatus === 'break') {
-      // End Break
-      if (breakStartTime) {
-        const breakDuration = Math.floor((new Date().getTime() - new Date(breakStartTime).getTime()) / 1000);
-        setBreakTimeRemaining(breakTimeRemaining + breakDuration);
-      }
-      setBreakStartTime(null);
-      localStorage.removeItem('breakStartTime');
+  function replaceData(next: DataState, persist = true) {
+    if (persist && sessionRef.current) {
+      try { localStorage.setItem(userStorageKey(sessionRef.current.userId, 'data'), JSON.stringify(next)); }
+      catch { setAuthError('تعذر تحديث النسخة المحلية بسبب امتلاء التخزين. عمليات الحفظ المعلقة محفوظة بشكل مستقل.'); }
     }
-    
-    setWorkStatusState(status);
-    localStorage.setItem('workStatus', status);
-  };
-
-  // Calculate canAddData: only allow when clockedIn
-  const canAddData = workStatus === 'clockedIn';
-
-  // Load data from localStorage on mount
-  useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    const savedToken = localStorage.getItem('accessToken');
-    const savedAccounts = localStorage.getItem('accounts');
-    const savedVisits = localStorage.getItem('visits');
-    const savedOutbox = localStorage.getItem('outbox');
-    const savedWorkStatus = localStorage.getItem('workStatus');
-    const savedClockInTime = localStorage.getItem('clockInTime');
-    const savedBreakStartTime = localStorage.getItem('breakStartTime');
-    const savedAgreements = localStorage.getItem('agreements');
-    const savedAppointments = localStorage.getItem('appointments');
-    const savedCurrentVisit = localStorage.getItem('currentVisit');
-
-    if (savedUser) setUser(JSON.parse(savedUser));
-    if (savedToken) setAccessToken(savedToken);
-    if (savedAccounts) setAccounts(JSON.parse(savedAccounts));
-    if (savedVisits) setVisits(JSON.parse(savedVisits));
-    if (savedOutbox) setOutbox(JSON.parse(savedOutbox));
-    if (savedWorkStatus) setWorkStatusState(savedWorkStatus as WorkStatus);
-    if (savedClockInTime) setClockInTime(savedClockInTime);
-    if (savedBreakStartTime) setBreakStartTime(savedBreakStartTime);
-    if (savedAgreements) setAgreements(JSON.parse(savedAgreements));
-    if (savedAppointments) setAppointments(JSON.parse(savedAppointments));
-    if (savedCurrentVisit) setCurrentVisit(JSON.parse(savedCurrentVisit));
-  }, []);
-
-  // Save to localStorage when data changes
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
-    }
-  }, [user]);
-
-  useEffect(() => {
-    localStorage.setItem('accounts', JSON.stringify(accounts));
-  }, [accounts]);
-
-  useEffect(() => {
-    localStorage.setItem('visits', JSON.stringify(visits));
-  }, [visits]);
-
-  useEffect(() => {
-    localStorage.setItem('outbox', JSON.stringify(outbox));
-  }, [outbox]);
-
-  useEffect(() => {
-    localStorage.setItem('agreements', JSON.stringify(agreements));
-  }, [agreements]);
-
-  useEffect(() => {
-    localStorage.setItem('appointments', JSON.stringify(appointments));
-  }, [appointments]);
-
-  // Fetch accounts and visits when user logs in
-  useEffect(() => {
-    if (user && accessToken && isOnline) {
-      fetchAccountsFromServer();
-      fetchVisitsFromServer();
-    }
-  }, [user, accessToken, isOnline]);
-
-  const fetchAccountsFromServer = async () => {
-    if (!accessToken) return;
-
-    try {
-      const response = await fetch(`${API_URL}/accounts`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.accounts) {
-          setAccounts(data.accounts);
-        }
-      }
-    } catch (error) {
-      console.log('Error fetching accounts:', error);
-    }
-  };
-
-  const fetchVisitsFromServer = async () => {
-    if (!accessToken) return;
-
-    try {
-      const response = await fetch(`${API_URL}/visits`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.visits) {
-          setVisits(data.visits);
-        }
-      }
-    } catch (error) {
-      console.log('Error fetching visits:', error);
-    }
-  };
-
-  const login = async (employeeId: string, password: string) => {
-    if (!isOnline) {
-      throw new Error('لا يمكن تسجيل الدخول لأول مرة بدون إنترنت.');
-    }
-
-    try {
-      // Sign in with Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: employeeId, // Using employeeId as email for now
-        password,
-      });
-
-      if (error) {
-        throw new Error('بيانات الدخول غير صحيحة.');
-      }
-
-      if (!data.session) {
-        throw new Error('فشل تسجيل الدخول.');
-      }
-
-      // Get user details from server
-      const response = await fetch(`${API_URL}/auth/user`, {
-        headers: {
-          'Authorization': `Bearer ${data.session.access_token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('فشل الحصول على بيانات المستخدم.');
-      }
-
-      const userData = await response.json();
-
-      const userObj: User = {
-        id: data.user.id,
-        name: userData.user.name || data.user.user_metadata.name,
-        employeeId: userData.user.employeeId || data.user.user_metadata.employeeId,
-        email: data.user.email || '',
-        company: userData.user.company,
-      };
-
-      setUser(userObj);
-      setAccessToken(data.session.access_token);
-      localStorage.setItem('accessToken', data.session.access_token);
-    } catch (error) {
-      console.log('Login error:', error);
-      throw error;
-    }
-  };
-
-  const loginOffline = () => {
-    const savedUser = localStorage.getItem('user');
-    const savedToken = localStorage.getItem('accessToken');
-    if (savedUser && savedToken) {
-      setUser(JSON.parse(savedUser));
-      setAccessToken(savedToken);
-    }
-  };
-
-  const logout = () => {
-    supabase.auth.signOut();
+    dataRef.current = next;
+    revisionRef.current++;
+    setData(next);
+  }
+  function updateData(update: (previous: DataState) => DataState) { replaceData(update(dataRef.current)); }
+  function requireSession() {
+    if (!sessionRef.current) throw new Error('يجب تسجيل الدخول أولاً.');
+    return sessionRef.current;
+  }
+  function clearSession(removeCredential = true) {
+    epochRef.current++;
+    const previous = sessionRef.current;
+    sessionRef.current = null;
+    if (removeCredential) localStorage.removeItem(SESSION_KEY);
+    if (previous) localStorage.removeItem(userStorageKey(previous.userId, 'data'));
+    syncService.configureSession(null, null);
     setUser(null);
-    setAccessToken(null);
-    localStorage.removeItem('accessToken');
-    // Keep other data for offline use
-  };
-
-  const addAccount = (accountData: Omit<Account, 'id'>): Account => {
-    const newAccount: Account = {
-      ...accountData,
-      id: Date.now().toString(),
-    };
-    setAccounts(prev => [...prev, newAccount]);
-    
-    // Add to sync queue
-    syncService.addToQueue({
-      type: 'account',
-      operation: 'create',
-      data: newAccount,
-    });
-    
-    return newAccount;
-  };
-
-  const syncAccountToServer = async (account: Account) => {
-    // This method is now handled by syncService
-    syncService.addToQueue({
-      type: 'account',
-      operation: 'update',
-      data: account,
-    });
-  };
-
-  const updateAccount = (id: string, updates: Partial<Account>) => {
-    setAccounts(prev =>
-      prev.map(acc => (acc.id === id ? { ...acc, ...updates } : acc))
-    );
-    
-    const updatedAccount = accounts.find(a => a.id === id);
-    if (updatedAccount) {
-      const updated = { ...updatedAccount, ...updates };
-      
-      syncService.addToQueue({
-        type: 'account',
-        operation: 'update',
-        data: updated,
-      });
+    replaceData(initialData(), false);
+    setOutbox([]);
+    setAuthReady(true);
+  }
+  async function activateSession(nextUser: User, accessToken: string) {
+    // Private routes must wait for the first database read, not only token validation.
+    // Otherwise an immediate clock-in can change state and discard the initial GETs.
+    setAuthReady(false);
+    const session = { userId: nextUser.id, accessToken };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    sessionRef.current = session;
+    syncService.configureSession(nextUser.id, accessToken);
+    const cached = readStored<Partial<DataState>>(userStorageKey(nextUser.id, 'data'), {});
+    const restored = { ...initialData(), ...cached };
+    for (const field of ['accounts', 'visits', 'appointments', 'agreements'] as const) {
+      if (!Array.isArray(restored[field])) restored[field] = [];
     }
-  };
-
-  const startVisit = (accountId: string, lat: number, lng: number): Visit => {
-    const newVisit: Visit = {
-      id: Date.now().toString(),
-      accountId,
-      startTime: new Date().toISOString(),
-      latitude: lat,
-      longitude: lng,
-    };
-    setCurrentVisit(newVisit);
-    localStorage.setItem('currentVisit', JSON.stringify(newVisit));
-    return newVisit;
-  };
-
-  const endVisit = (visitId: string, outcome: Visit['outcome'], notesOrData?: string | any) => {
-    const endTime = new Date().toISOString();
-    const visit = currentVisit;
-    if (!visit) return;
-
-    // Handle both string notes and object data
-    let notes = '';
-    let additionalData = {};
-    
-    if (typeof notesOrData === 'string') {
-      notes = notesOrData;
-    } else if (typeof notesOrData === 'object' && notesOrData !== null) {
-      // Extract notes from object if present
-      if ('notes' in notesOrData && typeof notesOrData.notes === 'string') {
-        notes = notesOrData.notes;
-      }
-      // Store the entire object as additional data
-      // But DON'T include it in the Visit object to avoid rendering issues
-      // Instead, we could stringify it or handle it separately
-      additionalData = notesOrData;
-    }
-
-    const completedVisit: Visit = {
-      ...visit,
-      endTime,
-      outcome,
-      notes, // This is always a string now
-      duration: Math.floor(
-        (new Date(endTime).getTime() - new Date(visit.startTime).getTime()) / 60000
-      ),
-      // Store additional data separately if needed for backend sync
-      // but not in a way that will be rendered directly
-    };
-
-    setVisits(prev => [...prev, completedVisit]);
-    setCurrentVisit(null);
-    localStorage.removeItem('currentVisit');
-    
-    // Add to sync queue with additional data
-    syncService.addToQueue({
-      type: 'visit',
-      operation: 'create',
-      data: {
-        ...completedVisit,
-        ...additionalData, // Backend can handle the full data
-      },
-    });
-
-    // Update account last visit
-    updateAccount(visit.accountId, { lastVisit: endTime });
-  };
-
-  const syncVisitToServer = async (visit: Visit) => {
-    // This method is now handled by syncService
-    syncService.addToQueue({
-      type: 'visit',
-      operation: 'create',
-      data: visit,
-    });
-  };
-
-  const addToOutbox = (item: Omit<OutboxItem, 'id' | 'timestamp'>) => {
-    const newItem: OutboxItem = {
-      ...item,
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString(),
-    };
-    setOutbox(prev => [...prev, newItem]);
-  };
-
-  const syncNow = async () => {
-    if (!isOnline) {
-      throw new Error('لا يوجد اتصال بالإنترنت');
-    }
-
-    if (!accessToken) {
-      throw new Error('يجب تسجيل الدخول أولاً');
-    }
-
+    restored.accounts = mergePending(restored.accounts, 'account');
+    restored.visits = mergePending(restored.visits, 'visit');
+    restored.appointments = mergePending(restored.appointments, 'appointment');
+    restored.agreements = mergePending(restored.agreements, 'agreement');
+    replaceData(restored);
+    setUser(nextUser);
+    setAuthError(null);
     try {
-      // Process sync queue
-      await syncService.processSyncQueue(accessToken);
-      
-      // Refresh data from server
-      await fetchAccountsFromServer();
-      await fetchVisitsFromServer();
-      
-      // Update outbox to reflect sync queue
-      const queueSize = syncService.getQueueSize();
-      if (queueSize === 0) {
-        setOutbox([]);
-      }
+      await syncNow();
     } catch (error) {
-      console.log('Sync error:', error);
-      throw error;
+      if (sessionRef.current === session) {
+        setAuthError(error instanceof Error ? error.message : 'تعذر تحديث البيانات.');
+      }
+    } finally {
+      if (sessionRef.current === session) setAuthReady(true);
     }
-  };
+  }
 
-  // Online/Offline detection
+  async function refreshServerData() {
+    const session = requireSession();
+    const revision = revisionRef.current;
+    const responses = await Promise.all(['accounts', 'visits', 'appointments', 'agreements'].map(collection =>
+      apiRequest<Record<string, any>>(`/${collection}`, {}, session.accessToken)));
+    if (sessionRef.current !== session || revisionRef.current !== revision) return;
+    const accounts = mergePending<Account>(responses[0].accounts || [], 'account');
+    const visits = mergePending<Visit>(responses[1].visits || [], 'visit');
+    const appointments = mergePending<Appointment>(responses[2].appointments || [], 'appointment');
+    const agreements = mergePending<Agreement>(responses[3].agreements || [], 'agreement');
+    const currentVisit = visits.find(visit => visit.id === dataRef.current.currentVisit?.id && !visit.endTime)
+      || visits.filter(visit => !visit.endTime).sort((a, b) => b.startTime.localeCompare(a.startTime))[0] || null;
+    updateData(previous => ({ ...previous, accounts, visits, appointments, agreements, currentVisit }));
+  }
+  async function syncNow() {
+    requireSession();
+    let syncError: unknown;
+    try { await syncService.processSyncQueue(); } catch (error) { syncError = error; }
+    await refreshServerData();
+    if (syncError) throw syncError;
+    setAuthError(null);
+  }
+
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      // Auto sync when coming back online
-      if (accessToken) {
-        syncService.processSyncQueue(accessToken);
+    const unsubscribe = syncService.subscribe(() => setOutbox(syncService.getItems() as OutboxItem[]));
+    const handleOnline = () => { setIsOnline(true); if (sessionRef.current) void syncNow().catch(() => {}); };
+    const handleOffline = () => setIsOnline(false);
+    const handleExpired = () => { clearSession(); setAuthError('انتهت الجلسة. يرجى تسجيل الدخول مجددًا؛ العمليات المعلقة محفوظة لحسابك.'); };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === SESSION_KEY && event.newValue !== event.oldValue) {
+        clearSession(false);
+        setAuthError('تغيّرت الجلسة في نافذة أخرى. أعد تحميل الصفحة أو سجّل الدخول.');
       }
     };
-    const handleOffline = () => setIsOnline(false);
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
+    window.addEventListener('crm:session-expired', handleExpired);
+    window.addEventListener('storage', handleStorage);
+    const epoch = ++epochRef.current;
+    const saved = readStored<Session | null>(SESSION_KEY, null);
+    if (saved?.accessToken && saved?.userId) {
+      apiRequest<{ user: User }>('/auth/user', {}, saved.accessToken).then(result => {
+        if (epoch !== epochRef.current) return;
+        if (result.user.id !== saved.userId) throw new Error('تعذر التحقق من هوية الجلسة.');
+        return activateSession(result.user, saved.accessToken);
+      }).catch(error => {
+        if (epoch !== epochRef.current) return;
+        if (error instanceof ApiError && error.status === 401) localStorage.removeItem(SESSION_KEY);
+        setAuthError(error instanceof Error ? error.message : 'تعذر التحقق من الجلسة.');
+        setAuthReady(true);
+      });
+    } else setAuthReady(true);
     return () => {
+      epochRef.current++;
+      unsubscribe();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('crm:session-expired', handleExpired);
+      window.removeEventListener('storage', handleStorage);
     };
-  }, [accessToken]);
-
-  // Timer for work time and break time
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (workStatus === 'clockedIn' && clockInTime) {
-        // Update total work time (excluding breaks)
-        const now = new Date().getTime();
-        const clockIn = new Date(clockInTime).getTime();
-        const duration = Math.floor((now - clockIn) / 1000);
-        setTotalWorkTime(duration);
-      } else if (workStatus === 'break' && breakStartTime) {
-        // Update break timer
-        const now = new Date().getTime();
-        const breakStart = new Date(breakStartTime).getTime();
-        const elapsed = Math.floor((now - breakStart) / 1000);
-        const remaining = Math.max(0, BREAK_DURATION - elapsed);
-        setBreakTimeRemaining(remaining);
-
-        // Show warning notification
-        if (remaining === BREAK_WARNING_TIME) {
-          // Trigger notification
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('تنبيه: قرب انتهاء الاستراحة', {
-              body: 'ستنتهي فترة الاستراحة خلال 5 دقائق',
-              icon: '/icon.png',
-            });
-          }
-        }
-
-        // Auto end break when time is up
-        if (remaining === 0 && workStatus === 'break') {
-          handleSetWorkStatus('clockedIn');
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('انتهت فترة الاستراحة', {
-              body: 'يرجى العودة للعمل',
-              icon: '/icon.png',
-            });
-          }
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [workStatus, clockInTime, breakStartTime]);
-
-  // Request notification permission on mount
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
   }, []);
 
-  // Calculate daily summary when clocking out
+  async function authenticate(path: string, body: unknown) {
+    const epoch = ++epochRef.current;
+    setAuthError(null);
+    const result = await apiRequest<{ user: User; accessToken: string }>(path, { method: 'POST', body: JSON.stringify(body) });
+    if (epoch !== epochRef.current) return;
+    await activateSession(result.user, result.accessToken);
+  }
+  const login = (email: string, password: string) => authenticate('/auth/login', { email: email.trim(), password });
+  const register = (input: Registration) => authenticate('/auth/signup', { ...input, email: input.email.trim(), name: input.name.trim() });
+  async function updateProfile(updates: Partial<Pick<User, 'name' | 'company' | 'employeeId'>>) {
+    const session = requireSession();
+    const result = await apiRequest<{ user: User }>('/auth/user', { method: 'PATCH', body: JSON.stringify(updates) }, session.accessToken);
+    if (sessionRef.current === session) setUser(result.user);
+  }
+  function logout() {
+    const token = sessionRef.current?.accessToken;
+    clearSession();
+    setAuthError(null);
+    if (token) void apiRequest('/auth/logout', { method: 'POST' }, token).catch(() => {});
+  }
+  function loginOffline() {
+    throw new Error('تسجيل الدخول يتطلب التحقق من الخادم. سجّل الدخول عند توفر الاتصال أولاً.');
+  }
+
+  function setWorkStatus(status: WorkStatus) {
+    requireSession();
+    const previous = dataRef.current;
+    if (previous.workStatus === status || (status === 'break' && previous.workStatus !== 'clockedIn')) return;
+    const timestamp = new Date().toISOString();
+    let next = { ...previous, workStatus: status };
+    if (status === 'clockedIn' && previous.workStatus === 'offDuty') {
+      next = { ...next, clockInTime: timestamp, breakStartTime: null, breakSeconds: 0, totalWorkTime: 0, dailySummary: null };
+    } else if (status === 'break') {
+      next.breakStartTime = timestamp;
+    } else if (status === 'clockedIn' && previous.breakStartTime) {
+      next.breakSeconds += Math.max(0, Math.floor((Date.parse(timestamp) - Date.parse(previous.breakStartTime)) / 1000));
+      next.breakStartTime = null;
+    } else if (status === 'offDuty') {
+      next.totalWorkTime = workSeconds(previous, Date.now());
+      next.clockInTime = null;
+      next.breakStartTime = null;
+      const today = new Date().toDateString();
+      const completed = next.visits.filter(visit => visit.endTime && new Date(visit.endTime).toDateString() === today);
+      next.dailySummary = {
+        totalVisits: completed.length, totalDeals: completed.filter(visit => visit.outcome === 'deal').length,
+        totalAppointments: completed.filter(visit => visit.outcome === 'appointment').length,
+        totalFollowUps: completed.filter(visit => visit.outcome === 'busy').length,
+        totalWorkTime: next.totalWorkTime, date: today,
+      };
+    }
+    replaceData(next);
+    setNow(Date.now());
+  }
   useEffect(() => {
-    if (workStatus === 'offDuty' && totalWorkTime > 0) {
-      const summary = calculateDailySummary();
-      setDailySummary(summary);
-    }
-  }, [workStatus]);
+    if (data.workStatus === 'offDuty') return;
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [data.workStatus]);
+  const breakTimeRemaining = data.breakStartTime ? Math.max(0, 1800 - Math.floor((now - Date.parse(data.breakStartTime)) / 1000)) : 0;
+  useEffect(() => {
+    if (authReady && data.workStatus === 'break' && data.breakStartTime && breakTimeRemaining === 0) setWorkStatus('clockedIn');
+  }, [authReady, breakTimeRemaining, data.workStatus, data.breakStartTime]);
 
-  const addAgreement = (agreementData: Omit<Agreement, 'id' | 'createdAt'>): Agreement => {
-    const newAgreement: Agreement = {
-      ...agreementData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    };
-    setAgreements(prev => [...prev, newAgreement]);
-    
-    // Add to sync queue
-    syncService.addToQueue({
-      type: 'agreement',
-      operation: 'create',
-      data: newAgreement,
-    });
-    
-    return newAgreement;
-  };
+  function addAccount(input: Omit<Account, 'id'>) {
+    requireSession();
+    if (dataRef.current.workStatus !== 'clockedIn') throw new Error('ابدأ يوم العمل قبل إضافة عميل.');
+    const account = { ...input, id: crypto.randomUUID() };
+    syncService.addToQueue({ type: 'account', operation: 'create', data: account });
+    updateData(previous => ({ ...previous, accounts: [...previous.accounts, account] }));
+    return account;
+  }
+  function updateAccount(id: string, updates: Partial<Account>) {
+    requireSession();
+    const previous = dataRef.current.accounts.find(account => account.id === id);
+    if (!previous) throw new Error('لم يتم العثور على العميل.');
+    const account = { ...previous, ...updates, id };
+    syncService.addToQueue({ type: 'account', operation: 'update', data: account });
+    updateData(state => ({ ...state, accounts: upsert(state.accounts, account) }));
+  }
+  function startVisit(accountId: string, lat: number, lng: number) {
+    requireSession();
+    if (dataRef.current.workStatus !== 'clockedIn') throw new Error('ابدأ يوم العمل قبل بدء الزيارة.');
+    if (!dataRef.current.accounts.some(account => account.id === accountId)) throw new Error('لم يتم العثور على العميل.');
+    if (dataRef.current.currentVisit) throw new Error('أنهِ الزيارة الحالية قبل بدء زيارة جديدة.');
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new Error('إحداثيات الموقع غير صحيحة.');
+    const visit: Visit = { id: crypto.randomUUID(), accountId, startTime: new Date().toISOString(), latitude: lat, longitude: lng };
+    syncService.addToQueue({ type: 'visit', operation: 'create', data: visit });
+    updateData(previous => ({ ...previous, currentVisit: visit, visits: upsert(previous.visits, visit) }));
+    return visit;
+  }
+  function endVisit(visitId: string, outcome: Visit['outcome'], notesOrData?: string | any) {
+    requireSession();
+    const visit = dataRef.current.currentVisit;
+    if (!visit || visit.id !== visitId) throw new Error('هذه الزيارة غير نشطة.');
+    if (!outcome) throw new Error('اختر نتيجة الزيارة.');
+    const endTime = new Date().toISOString();
+    const notes = typeof notesOrData === 'string' ? notesOrData : typeof notesOrData?.notes === 'string' ? notesOrData.notes : '';
+    const completed = { ...visit, endTime, outcome, notes, duration: Math.max(0, Math.floor((Date.parse(endTime) - Date.parse(visit.startTime)) / 60000)) };
+    syncService.addToQueue({ type: 'visit', operation: 'update', data: completed });
+    updateData(previous => ({ ...previous, visits: upsert(previous.visits, completed), currentVisit: null }));
+    updateAccount(visit.accountId, { lastVisit: endTime });
+  }
+  function addAgreement(input: Omit<Agreement, 'id' | 'createdAt'>) {
+    requireSession();
+    const agreement = { ...input, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+    syncService.addToQueue({ type: 'agreement', operation: 'create', data: agreement });
+    updateData(previous => ({ ...previous, agreements: [...previous.agreements, agreement] }));
+    return agreement;
+  }
+  function addAppointment(input: Omit<Appointment, 'id' | 'createdAt'>) {
+    requireSession();
+    const appointment = { ...input, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+    syncService.addToQueue({ type: 'appointment', operation: 'create', data: appointment });
+    updateData(previous => ({ ...previous, appointments: [...previous.appointments, appointment] }));
+    return appointment;
+  }
+  function updateAppointment(id: string, updates: Partial<Appointment>) {
+    requireSession();
+    const previous = dataRef.current.appointments.find(appointment => appointment.id === id);
+    if (!previous) throw new Error('لم يتم العثور على الموعد.');
+    const appointment = { ...previous, ...updates, id };
+    syncService.addToQueue({ type: 'appointment', operation: 'update', data: appointment });
+    updateData(state => ({ ...state, appointments: upsert(state.appointments, appointment) }));
+  }
+  function getUpcomingAppointments(accountId?: string) {
+    return data.appointments.filter(appointment => (!accountId || appointment.accountId === accountId)
+      && appointment.status === 'scheduled' && new Date(`${appointment.date}T${appointment.time}`).getTime() >= Date.now())
+      .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
+  }
 
-  const getActiveAgreement = (accountId: string): Agreement | null => {
-    return agreements.find(a => a.accountId === accountId && a.status === 'active') || null;
-  };
-
-  const addAppointment = (appointmentData: Omit<Appointment, 'id' | 'createdAt'>): Appointment => {
-    const newAppointment: Appointment = {
-      ...appointmentData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    };
-    setAppointments(prev => [...prev, newAppointment]);
-    
-    // Add to sync queue
-    syncService.addToQueue({
-      type: 'appointment',
-      operation: 'create',
-      data: newAppointment,
-    });
-    
-    return newAppointment;
-  };
-
-  const updateAppointment = (id: string, updates: Partial<Appointment>) => {
-    setAppointments(prev =>
-      prev.map(app => (app.id === id ? { ...app, ...updates } : app))
-    );
-    
-    const updatedAppointment = appointments.find(a => a.id === id);
-    if (updatedAppointment) {
-      const updated = { ...updatedAppointment, ...updates };
-      
-      syncService.addToQueue({
-        type: 'appointment',
-        operation: 'update',
-        data: updated,
-      });
-    }
-  };
-
-  const getUpcomingAppointments = (accountId?: string): Appointment[] => {
-    const now = new Date();
-    return appointments.filter(app => 
-      (!accountId || app.accountId === accountId) &&
-      new Date(app.date) >= now &&
-      app.status === 'scheduled'
-    );
-  };
-
-  return (
-    <AppContext.Provider
-      value={{
-        user,
-        isOnline,
-        isAuthenticated: !!user,
-        accounts,
-        visits,
-        outbox,
-        currentVisit,
-        workStatus,
-        clockInTime,
-        breakStartTime,
-        totalWorkTime,
-        breakTimeRemaining,
-        canAddData,
-        dailySummary,
-        agreements,
-        appointments,
-        login,
-        loginOffline,
-        logout,
-        setWorkStatus: handleSetWorkStatus,
-        addAccount,
-        updateAccount,
-        startVisit,
-        endVisit,
-        addToOutbox,
-        syncNow,
-        addAgreement,
-        getActiveAgreement,
-        addAppointment,
-        updateAppointment,
-        getUpcomingAppointments,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
-  );
+  return <AppContext.Provider value={{
+    ...data, user, authReady, authError, isOnline, isAuthenticated: !!user && !!sessionRef.current, outbox,
+    totalWorkTime: workSeconds(data, now), breakTimeRemaining, canAddData: !!user && data.workStatus === 'clockedIn',
+    login, register, updateProfile, loginOffline, logout, setWorkStatus, addAccount, updateAccount, startVisit, endVisit,
+    addToOutbox: item => syncService.addToQueue({ type: item.type, operation: 'create', data: item.data }),
+    syncNow, addAgreement, getActiveAgreement: accountId => data.agreements.find(agreement => agreement.accountId === accountId && agreement.status === 'active') || null,
+    addAppointment, updateAppointment, getUpcomingAppointments,
+  }}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {
   const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within AppProvider');
-  }
+  if (!context) throw new Error('useApp must be used within AppProvider');
   return context;
 }
