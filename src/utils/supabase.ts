@@ -1,11 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
-// Create Supabase client for frontend
-export const supabase = createClient(
-  `https://${projectId}.supabase.co`,
-  publicAnonKey
-);
+// Kept for an explicit future hosted integration. The active application uses /api.
+// Importing this file without hosted configuration must not initiate a network request.
+export const supabase = projectId && publicAnonKey
+  ? createClient(`https://${projectId}.supabase.co`, publicAnonKey)
+  : null;
 
 // Database types
 export interface Database {

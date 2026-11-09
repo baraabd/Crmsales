@@ -1,168 +1,172 @@
-/**
- * App Routes - Fixed Version with Error Handling
- */
+import {
+  createBrowserRouter,
+  Navigate,
+  Outlet,
+  useLocation,
+} from "react-router";
+import { useApp } from "./contexts/AppContext";
+import { Login } from "./screens/auth/Login";
+import { RegisterRep } from "./screens/auth/RegisterRep";
+import { ForgotPassword } from "./screens/auth/ForgotPassword";
+import { MainLayout } from "./screens/MainLayout";
+import { Dashboard } from "./screens/connected/Dashboard";
+import {
+  Accounts,
+  AddAccount,
+  AccountDetails,
+} from "./screens/connected/Accounts";
+import {
+  VisitCheckIn,
+  CurrentVisit,
+  VisitResult,
+  AppointmentEditor,
+  FollowUp,
+  RejectVisit,
+} from "./screens/connected/Visits";
+import {
+  CreateAgreement,
+  AgreementDetails,
+  ServiceList,
+} from "./screens/connected/Agreements";
+import {
+  Calendar,
+  Statistics,
+  Reminders,
+  Workday,
+} from "./screens/connected/Reports";
+import {
+  Profile,
+  SyncStatus,
+  Settings,
+  Help,
+} from "./screens/connected/AccountSettings";
 
-import { createBrowserRouter, Navigate } from 'react-router';
-import { Login } from './screens/auth/Login';
-import { RegisterRep } from './screens/auth/RegisterRep';
-import { ForgotPassword } from './screens/auth/ForgotPassword';
-import { FirstRunSetup } from './screens/setup/FirstRunSetup';
-import { MainLayout } from './screens/MainLayout';
-import { HomeScreenNew } from './screens/HomeScreenNew';
-import { MapScreen } from './screens/MapScreen';
-import { CalendarScreenNew } from './screens/calendar/CalendarScreenNew';
-import { LeadsScreenNew } from './screens/leads/LeadsScreenNew';
-import { StatsScreenNew } from './screens/StatsScreenNew';
-import { ProfileScreenNew } from './screens/profile/ProfileScreenNew';
-import { NotificationsScreenNew } from './screens/notifications/NotificationsScreenNew';
-import { ServicesScreen } from './screens/ServicesScreen';
-import { IdentifyCustomer } from './screens/dropin/IdentifyCustomer';
-import { IdentifyCustomerNew } from './screens/dropin/IdentifyCustomerNew';
-import { QuickAddCustomer } from './screens/dropin/QuickAddCustomer';
-import { CheckIn } from './screens/dropin/CheckIn';
-import { CheckInNew } from './screens/dropin/CheckInNew';
-import { InProgress } from './screens/dropin/InProgress';
-import { OutcomeSheet } from './screens/dropin/OutcomeSheet';
-import { ServicesCatalog } from './screens/services/ServicesCatalog';
-import { Cart } from './screens/services/Cart';
-import { Discount } from './screens/services/Discount';
-import { AgreementTerms } from './screens/agreement/AgreementTerms';
-import { Signature } from './screens/agreement/Signature';
-import { ScheduleAppointment } from './screens/outcomes/ScheduleAppointment';
-import { BusyFollowUp } from './screens/outcomes/BusyFollowUp';
-import { Rejection } from './screens/outcomes/Rejection';
-import { Timesheet } from './screens/drawer/Timesheet';
-import { Settings } from './screens/drawer/Settings';
-import { Help } from './screens/drawer/Help';
-import { SyncStatus } from './screens/drawer/SyncStatus';
-import { LeadDetails } from './screens/leads/LeadDetails';
-import { OutcomeSheet } from './screens/dropin/OutcomeSheet';
-import { ScheduleAppointment } from './screens/outcomes/ScheduleAppointment';
-import { FollowUpReminder } from './screens/outcomes/FollowUpReminder';
-import { Rejection } from './screens/outcomes/Rejection';
-import ActiveVisit from './screens/visit/ActiveVisit';
-import VisitOutcome from './screens/visit/VisitOutcome';
-import NextStep from './screens/visit/NextStep';
-import DealPipeline from './screens/visit/DealPipeline';
-
-// Error Boundary Component
-function ErrorBoundary() {
-  return (
-    <div className="mobile-screen" dir="rtl">
-      <div className="mobile-content flex items-center justify-center px-6">
-        <div className="text-center">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: 'var(--bg-card)' }}
-          >
-            <span style={{ fontSize: '32px' }}>⚠️</span>
-          </div>
-          <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
-            حدث خطأ
-          </h1>
-          <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-            عذراً، حدث خطأ غير متوقع
-          </p>
-          <button
-            onClick={() => window.location.href = '/app/home-new'}
-            className="px-6 py-3 rounded-xl font-semibold"
-            style={{
-              background: 'var(--color-primary)',
-              color: '#000',
-            }}
-          >
-            العودة للرئيسية
-          </button>
-        </div>
+function Protected() {
+  const { authReady, isAuthenticated } = useApp();
+  const location = useLocation();
+  if (!authReady)
+    return (
+      <div
+        role="status"
+        className="h-full flex items-center justify-center"
+        dir="rtl"
+      >
+        جارٍ التحقق من الجلسة…
       </div>
+    );
+  if (!isAuthenticated)
+    return (
+      <Navigate to="/auth/login" replace state={{ from: location.pathname }} />
+    );
+  return <Outlet />;
+}
+function RouteError() {
+  return (
+    <div
+      dir="rtl"
+      className="h-full overflow-y-auto p-8 space-y-4"
+      style={{ background: "var(--bg-app)", color: "var(--text-primary)" }}
+    >
+      <h1 className="text-xl font-bold">تعذر عرض الصفحة</h1>
+      <p>أعد تحميل الصفحة. إذا استمر الخطأ، تحقق من تشغيل الخادم.</p>
+      <a href="/app/home-new" style={{ color: "var(--color-primary)" }}>
+        العودة للرئيسية
+      </a>
     </div>
   );
 }
 
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <Navigate to="/auth/login" replace />,
-    errorElement: <ErrorBoundary />,
-  },
-  {
-    path: '/auth',
-    errorElement: <ErrorBoundary />,
-    children: [
-      { path: 'login', element: <Login /> },
-      { path: 'register', element: <RegisterRep /> },
-      { path: 'forgot-password', element: <ForgotPassword /> },
-    ],
-  },
-  {
-    path: '/setup',
-    element: <FirstRunSetup />,
-    errorElement: <ErrorBoundary />,
-  },
-  {
-    path: '/app',
-    element: <MainLayout />,
-    errorElement: <ErrorBoundary />,
-    children: [
-      { index: true, element: <Navigate to="/app/home-new" replace /> },
-      
-      /* New Screens - Mobile Optimized */
-      { path: 'home-new', element: <HomeScreenNew /> },
-      { path: 'map-new', element: <MapScreen /> },
-      { path: 'calendar-new', element: <CalendarScreenNew /> },
-      { path: 'leads-new', element: <LeadsScreenNew /> },
-      { path: 'stats-new', element: <StatsScreenNew /> },
-      { path: 'profile-new', element: <ProfileScreenNew /> },
-      { path: 'notifications-new', element: <NotificationsScreenNew /> },
-      { path: 'services-new', element: <ServicesScreen /> },
-      
-      /* Redirects for old routes */
-      { path: 'home', element: <Navigate to="/app/home-new" replace /> },
-      { path: 'map', element: <Navigate to="/app/map-new" replace /> },
-      { path: 'calendar', element: <Navigate to="/app/calendar-new" replace /> },
-      { path: 'leads', element: <Navigate to="/app/leads-new" replace /> },
-      { path: 'stats', element: <Navigate to="/app/stats-new" replace /> },
-      { path: 'profile', element: <Navigate to="/app/profile-new" replace /> },
-      { path: 'notifications', element: <Navigate to="/app/notifications-new" replace /> },
-      
-      /* Other Screens */
-      { path: 'leads/:id', element: <LeadDetails /> },
-      { path: 'timesheet', element: <Timesheet /> },
-      { path: 'settings', element: <Settings /> },
-      { path: 'help', element: <Help /> },
-      { path: 'sync-status', element: <SyncStatus /> },
-    ],
-  },
-  {
-    path: '/visit',
-    errorElement: <ErrorBoundary />,
-    children: [
-      { path: 'active/:visitId', element: <ActiveVisit /> },
-      { path: 'outcome/:visitId', element: <VisitOutcome /> },
-      { path: 'next-step/:visitId', element: <NextStep /> },
-      { path: 'deal/:visitId', element: <DealPipeline /> },
-    ],
-  },
-  {
-    path: '/dropin',
-    errorElement: <ErrorBoundary />,
-    children: [
-      { path: 'identify', element: <IdentifyCustomer /> },
-      { path: 'identify-new', element: <IdentifyCustomerNew /> },
-      { path: 'quick-add', element: <QuickAddCustomer /> },
-      { path: 'checkin/:accountId', element: <CheckIn /> },
-      { path: 'checkin-new/:accountId', element: <CheckInNew /> },
-      { path: 'in-progress', element: <InProgress /> },
-      { path: 'in-progress/:visitId', element: <InProgress /> },
-      { path: 'outcome/:visitId', element: <OutcomeSheet /> },
-      { path: 'services/:visitId', element: <ServicesScreen /> },
-      { path: 'appointment/:visitId', element: <ScheduleAppointment /> },
-      { path: 'followup/:visitId', element: <FollowUpReminder /> },
-      { path: 'reject/:visitId', element: <Rejection /> },
-    ],
-  },
-  {
-    path: '*',
+    path: "/",
     element: <Navigate to="/app/home-new" replace />,
+    errorElement: <RouteError />,
   },
+  {
+    path: "/auth",
+    errorElement: <RouteError />,
+    children: [
+      { index: true, element: <Navigate to="/auth/login" replace /> },
+      { path: "login", element: <Login /> },
+      { path: "register", element: <RegisterRep /> },
+      { path: "forgot-password", element: <ForgotPassword /> },
+    ],
+  },
+  {
+    element: <Protected />,
+    errorElement: <RouteError />,
+    children: [
+      { path: "/setup", element: <Navigate to="/app/home-new" replace /> },
+      {
+        path: "/app",
+        element: <MainLayout />,
+        children: [
+          { index: true, element: <Navigate to="/app/home-new" replace /> },
+          { path: "home-new", element: <Dashboard /> },
+          { path: "leads-new", element: <Accounts /> },
+          { path: "map-new", element: <Accounts locations /> },
+          { path: "calendar-new", element: <Calendar /> },
+          { path: "stats-new", element: <Statistics /> },
+          { path: "profile-new", element: <Profile /> },
+          { path: "notifications-new", element: <Reminders /> },
+          { path: "services-new", element: <ServiceList /> },
+          ...[
+            "home",
+            "leads",
+            "map",
+            "calendar",
+            "stats",
+            "profile",
+            "notifications",
+            "services",
+          ].map((path) => ({
+            path,
+            element: <Navigate to={`/app/${path}-new`} replace />,
+          })),
+          { path: "leads/:id", element: <AccountDetails /> },
+          { path: "agreements/:agreementId", element: <AgreementDetails /> },
+          {
+            path: "appointments/:appointmentId/edit",
+            element: <AppointmentEditor />,
+          },
+          { path: "timesheet", element: <Workday /> },
+          { path: "sync-status", element: <SyncStatus /> },
+          { path: "settings", element: <Settings /> },
+          { path: "help", element: <Help /> },
+        ],
+      },
+      {
+        path: "/dropin",
+        children: [
+          { index: true, element: <Navigate to="/dropin/identify" replace /> },
+          { path: "identify", element: <Accounts selectForVisit /> },
+          { path: "identify-new", element: <Accounts selectForVisit /> },
+          { path: "quick-add", element: <AddAccount /> },
+          { path: "checkin/:accountId", element: <VisitCheckIn /> },
+          { path: "checkin-new/:accountId", element: <VisitCheckIn /> },
+          { path: "in-progress", element: <CurrentVisit /> },
+          { path: "in-progress/:visitId", element: <CurrentVisit /> },
+          { path: "outcome/:visitId", element: <VisitResult /> },
+          { path: "services/:visitId", element: <CreateAgreement /> },
+          { path: "cart/:visitId", element: <CreateAgreement /> },
+          { path: "agreement/:visitId", element: <CreateAgreement /> },
+          { path: "signature/:visitId", element: <CreateAgreement /> },
+          { path: "appointment/:visitId", element: <AppointmentEditor /> },
+          { path: "followup/:visitId", element: <FollowUp /> },
+          { path: "reject/:visitId", element: <RejectVisit /> },
+        ],
+      },
+      {
+        path: "/visit",
+        children: [
+          { index: true, element: <Navigate to="/app/home-new" replace /> },
+          { path: "active/:visitId", element: <CurrentVisit /> },
+          { path: "outcome/:visitId", element: <VisitResult /> },
+          { path: "next-step/:visitId", element: <VisitResult /> },
+          { path: "deal/:visitId", element: <CreateAgreement /> },
+        ],
+      },
+    ],
+  },
+  { path: "*", element: <Navigate to="/app/home-new" replace /> },
 ]);
